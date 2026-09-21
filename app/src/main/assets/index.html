@@ -75,7 +75,8 @@ button{background:none;border:none;padding:0;cursor:pointer}
 .nav .appearance{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--blue);
   width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center}
 .nav .appearance:active{background:var(--fill)}
-.large{padding:6px 16px 12px;font-size:30px;font-weight:700;letter-spacing:-.022em;line-height:1.2}
+/* h1 기본 여백(위아래 0.67em ≈ 20px)을 지운다 — 안 지우면 제목과 내용 사이가 34px 로 벌어진다 */
+.large{margin:0;padding:2px 16px 8px;font-size:30px;font-weight:700;letter-spacing:-.022em;line-height:1.2}
 
 main{padding-top:2px;padding-bottom:calc(72px + var(--sab))}
 .hdr{font-size:13px;color:var(--label2);padding:0 32px 6px;letter-spacing:-.005em}

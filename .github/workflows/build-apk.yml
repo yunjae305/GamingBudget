@@ -7,6 +7,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # 스텝의 if 에서는 secrets 를 직접 못 읽는다 — 잡 env 로 한 번 옮긴다
+      HAS_KEY: ${{ secrets.LEDGER_KEYSTORE_B64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -40,11 +43,11 @@ jobs:
       #   LEDGER_KEYSTORE_B64  = base64 로 인코딩한 .jks
       #   LEDGER_STORE_PASSWORD / LEDGER_KEY_ALIAS / LEDGER_KEY_PASSWORD
       - name: Decode keystore
-        if: ${{ secrets.LEDGER_KEYSTORE_B64 != '' }}
+        if: env.HAS_KEY == 'true'
         run: echo "${{ secrets.LEDGER_KEYSTORE_B64 }}" | base64 -d > release.jks
 
       - name: Build release APK + AAB
-        if: ${{ secrets.LEDGER_KEYSTORE_B64 != '' }}
+        if: env.HAS_KEY == 'true'
         env:
           LEDGER_STORE_FILE: release.jks
           LEDGER_STORE_PASSWORD: ${{ secrets.LEDGER_STORE_PASSWORD }}
@@ -53,7 +56,7 @@ jobs:
         run: gradle assembleRelease bundleRelease --no-daemon
 
       - uses: actions/upload-artifact@v4
-        if: ${{ secrets.LEDGER_KEYSTORE_B64 != '' }}
+        if: env.HAS_KEY == 'true'
         with:
           name: ledger-release
           path: |

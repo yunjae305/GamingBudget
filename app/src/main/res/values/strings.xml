@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">가계부</string>
+
+    <!-- 앱이 켜질 때마다 이 주소에서 최신 index.html 을 받아옵니다.
+         yunjae305/GamingBudget 저장소를 씁니다.
+         공개 저장소여야 하며, 직접 운영하는 서버 주소를 넣어도 됩니다. -->
+    <string name="update_url" translatable="false">https://raw.githubusercontent.com/yunjae305/GamingBudget/main/app/src/main/assets/index.html</string>
+</resources>

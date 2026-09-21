@@ -1,0 +1,22 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+node_modules/
+
+# 릴리스 서명 키 — 절대 커밋하지 않는다
+keystore.properties
+*.jks
+*.keystore
+release.jks
+
+/dist
+
+# AI 키 — 절대 커밋하지 않는다
+.env

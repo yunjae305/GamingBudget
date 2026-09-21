@@ -1,0 +1,239 @@
+<!--
+  개발용 아티팩트 미리보기 껍데기. 앱 자체가 아니라 앱을 폰 크기로 띄우는 무대다.
+  index.html 은 app.html 이라는 이름으로 같이 publish 되고, 이 페이지가 fetch 해서
+  iframe.srcdoc 에 넣는다. <iframe src="app.html"> 로 하면 안 된다 —
+  아티팩트 본문은 /_t 경로로 서빙돼서 상대경로가 엉뚱한 곳을 가리킨다.
+  srcdoc 은 부모 오리진을 물려받으므로 localStorage 도 그대로 쓰인다.
+-->
+<title>가계부</title>
+<style>
+:root{
+  --ground:#E9ECF1; --chrome:#FFFFFF; --line:#D5DAE2;
+  --ink:#141820; --ink2:#5C6472; --ink3:#8A929F;
+  --accent:#007AFF; --danger:#C2372C;
+  --seg:#EDEFF3; --segon:#FFFFFF;
+  --bezel:#0D0F13; --bezelline:#2B303A;
+  --shadow:0 20px 48px rgba(16,22,38,.20), 0 2px 6px rgba(16,22,38,.10);
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#111319; --chrome:#191C23; --line:#2B303A;
+    --ink:#ECEFF4; --ink2:#98A1B0; --ink3:#727B8A;
+    --accent:#0A84FF; --danger:#FF6961;
+    --seg:#22262E; --segon:#343A45;
+    --bezel:#000000; --bezelline:#363C45;
+    --shadow:0 20px 48px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#111319; --chrome:#191C23; --line:#2B303A;
+  --ink:#ECEFF4; --ink2:#98A1B0; --ink3:#727B8A;
+  --accent:#0A84FF; --danger:#FF6961;
+  --seg:#22262E; --segon:#343A45;
+  --bezel:#000000; --bezelline:#363C45;
+  --shadow:0 20px 48px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.4);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--ground); color:var(--ink);
+  height:100vh; margin:0; display:flex; flex-direction:column;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
+  font-size:13px;
+}
+
+/* ---- toolbar ---- */
+.bar{
+  flex:none; display:flex; align-items:center; gap:14px;
+  padding:9px 16px; background:var(--chrome);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex; align-items:baseline; gap:7px; min-width:0}
+.brand b{font-size:14px; font-weight:650; letter-spacing:-.01em}
+.brand span{font-size:11px; color:var(--ink3); letter-spacing:.06em; text-transform:uppercase}
+.spacer{flex:1}
+
+.seg{display:flex; background:var(--seg); border-radius:8px; padding:2px; gap:2px}
+.seg button{
+  appearance:none; border:0; background:transparent; color:var(--ink2);
+  font:inherit; font-size:12px; padding:5px 11px; border-radius:6px; cursor:pointer;
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+.seg button[aria-pressed="true"]{background:var(--segon); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.seg button:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+
+.act{
+  appearance:none; border:1px solid var(--line); background:var(--chrome); color:var(--ink);
+  font:inherit; font-size:12px; padding:6px 12px; border-radius:7px; cursor:pointer;
+}
+.act:hover{border-color:var(--ink3)}
+.act:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.act.warn{color:var(--danger)}
+.act.on{background:var(--accent); border-color:var(--accent); color:#fff}
+
+/* ---- stage ---- */
+.stage{flex:1; min-height:0; display:flex; justify-content:center; align-items:flex-start; padding:20px; overflow:auto}
+.fit{position:relative}
+.shell{
+  position:absolute; top:0; left:0; transform-origin:top left;
+  background:var(--bezel); padding:10px; border-radius:46px;
+  border:1px solid var(--bezelline); box-shadow:var(--shadow);
+}
+.shell iframe{display:block; border:0; border-radius:36px; background:#fff}
+
+/* ---- footnote ---- */
+.note{
+  flex:none; padding:8px 16px 12px; text-align:center;
+  font-size:11.5px; line-height:1.6; color:var(--ink3);
+}
+.note code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:11px; color:var(--ink2)}
+
+@media (max-width:720px){
+  .bar{flex-wrap:wrap; gap:8px}
+  .spacer{display:none}
+}
+</style>
+
+<div class="bar">
+  <div class="brand"><b>가계부</b> <span>미리보기</span></div>
+  <div class="spacer"></div>
+  <div class="seg" id="seg" role="group" aria-label="화면 크기">
+    <button type="button" data-k="galaxy" aria-pressed="true">갤럭시 360×800</button>
+    <button type="button" data-k="iphone" aria-pressed="false">아이폰 390×844</button>
+    <button type="button" data-k="wide" aria-pressed="false">큰 화면 412×915</button>
+  </div>
+  <button class="act on" type="button" id="seed" aria-pressed="true">샘플 알림 5건</button>
+  <button class="act" type="button" id="reload">새로고침</button>
+  <button class="act warn" type="button" id="wipe">데이터 비우기</button>
+</div>
+
+<div class="stage" id="stage">
+  <div class="fit" id="fit">
+    <div class="shell" id="shell">
+      <iframe id="app" title="가계부 앱 화면"></iframe>
+    </div>
+  </div>
+</div>
+
+<div class="note"><div id="diag" hidden style="color:var(--danger);font-weight:600;margin-bottom:4px"></div>
+  실제 <code>app/src/main/assets/index.html</code> 을 그대로 띄웁니다.
+  실제 결제 알림 감지와 자동 업데이트는 미리보기에 없습니다 — 대기열을 볼 수 있게 <b>샘플 알림 5건</b>을 흉내 내 넣어 둡니다(꺼서 빈 상태도 볼 수 있음).
+  입력한 내용은 이 미리보기에만 저장되고 폰 앱과는 무관합니다.
+</div>
+
+<script>
+(function(){
+  var DEV={galaxy:[360,800], iphone:[390,844], wide:[412,915]};
+  var cur='galaxy';
+  var stage=document.getElementById('stage'),
+      fit=document.getElementById('fit'),
+      shell=document.getElementById('shell'),
+      app=document.getElementById('app'),
+      seg=document.getElementById('seg'),
+      diag=document.getElementById('diag');
+
+  function layout(){
+    var d=DEV[cur], w=d[0], h=d[1], B=11;          // 10px padding + 1px border
+    app.style.width=w+'px'; app.style.height=h+'px';
+    var sw=w+B*2, sh=h+B*2;
+    var availW=stage.clientWidth-40, availH=stage.clientHeight-40;
+    var s=Math.min(1, availW/sw, availH/sh);
+    if(!isFinite(s)||s<=0) s=1;
+    shell.style.transform='scale('+s+')';
+    fit.style.width=(sw*s)+'px';
+    fit.style.height=(sh*s)+'px';
+  }
+
+  function fail(why){
+    diag.hidden=false;
+    diag.textContent='앱 화면을 불러오지 못했습니다 — '+why;
+  }
+
+  // seed 를 주면 앱 스크립트가 돌기 전에 window.Android 브리지를 흉내 내 심는다.
+  // tests/helpers.js 와 같은 방식이라 알림 원문 → parseOne → 대기열 경로를
+  // 실제 앱과 똑같이 태운다. 저장소를 직접 건드리지 않는다.
+  function loadApp(seed){
+    diag.hidden=true;
+    fetch('app.html',{cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
+      .then(function(t){
+        if(t.length<2000) throw new Error('받은 파일이 너무 작습니다 ('+t.length+'바이트)');
+        // 실제 앱은 통계 탭 캐릭터 그림을 "/assets/img/character.png" 절대경로로 부른다
+        // (WebViewAssetLoader 의 /assets/ 핸들러). 미리보기는 그 라우팅이 없으니, 같이
+        // publish 되는 상대경로 파일(character.png)로 바꿔치기한다. 파일이 없으면
+        // onerror 로 그냥 그라데이션 원만 보인다.
+        t=t.replace('/assets/img/character.png','character.png');
+        if(seed){
+          var js='<scr'+'ipt>(function(){var g=false,P='+JSON.stringify(seed)+';'+
+                 'window.Android={takePending:function(){if(g)return "[]";g=true;return JSON.stringify(P);},'+
+                 'hasNotifAccess:function(){return true;},notifConnected:function(){return true;},'+
+                 'openNotifAccess:function(){},setBars:function(){}};})();</scr'+'ipt>';
+          t=t.replace('<head>', function(){ return '<head>'+js; });
+        }
+        app.removeAttribute('src');
+        app.srcdoc=t;
+      })
+      .catch(function(e){ fail(String(e&&e.message||e)); app.src='app.html'; });
+  }
+
+  seg.addEventListener('click', function(e){
+    var b=e.target.closest('button[data-k]'); if(!b) return;
+    cur=b.dataset.k;
+    Array.prototype.forEach.call(seg.querySelectorAll('button'), function(x){
+      x.setAttribute('aria-pressed', String(x===b));
+    });
+    layout();
+  });
+
+  document.getElementById('reload').addEventListener('click', refresh);
+
+  // 안드로이드 WebView 스크롤바는 스크롤 중에만 잠깐 뜨는 오버레이라 자리를 차지하지
+  // 않는다. 데스크톱 크롬의 상시 스크롤바가 폭을 먹어 레이아웃을 왜곡하지 않도록 지운다.
+  app.addEventListener('load', function(){
+    try{
+      var d=app.contentDocument; if(!d||!d.head) return;
+      var st=d.createElement('style');
+      st.textContent='::-webkit-scrollbar{width:0;height:0;display:none}*{scrollbar-width:none;-ms-overflow-style:none}';
+      d.head.appendChild(st);
+    }catch(e){}
+  });
+
+  // 미리보기에는 window.Android 가 없어 결제 알림이 들어올 수 없다. 대기열이 빈 껍데기로
+  // 보이지 않도록 기본으로 알림 몇 건을 흉내 내 넣는다. 토글을 끄면 브리지 없는 상태가 된다.
+  function SAMPLES(){
+    var at=function(daysAgo,h,m){
+      var x=new Date(Date.now()-daysAgo*864e5); x.setHours(h,m,0,0); return x.getTime();
+    };
+    return [
+      {pkg:'com.shcard.smartpay', time:at(0,13,5), text:`신한카드 승인
+신한카드(1234)승인 홍*동
+12,000원 일시불
+스타벅스 강남점
+누적 345,000원`},
+      {pkg:'com.samsung.android.messaging', time:at(0,9,12), text:`[Web발신]
+KB국민체크(5678) 출금 4,500원 GS25 역삼점 잔액 120,300원`},
+      {pkg:'com.kakao.talk', time:at(0,19,40), text:`카카오페이
+결제 완료 38,900원
+배달의민족`},
+      {pkg:'com.shcard.smartpay', time:at(1,8,22), text:`신한카드 승인
+1,550원 서울교통공사`},
+      {pkg:'com.kbstar.kbbank', time:at(1,10,0), text:`[Web발신]
+KB국민 입금 2,400,000원 급여 잔액 3,120,000원`}
+    ];
+  }
+
+  var useSeed=true, seedBtn=document.getElementById('seed');
+  function refresh(){ loadApp(useSeed?SAMPLES():null); }
+  seedBtn.addEventListener('click', function(){
+    useSeed=!useSeed;
+    seedBtn.setAttribute('aria-pressed', String(useSeed));
+    seedBtn.classList.toggle('on', useSeed);
+    refresh();
+  });
+
+  window.addEventListener('resize', layout);
+  layout();
+  refresh();
+})();
+</script>

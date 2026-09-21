@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 안드로이드 12 이상용 백업·기기 이전 규칙. files/mirror.json 이 새 폰으로 따라가게 한다.
+     live/ 는 화면 파일이라 뺀다 — 새 APK 의 원본이 옛 화면에 덮이면 안 된다. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="file" path="." />
+        <exclude domain="file" path="live" />
+        <include domain="sharedpref" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="." />
+        <exclude domain="file" path="live" />
+        <include domain="sharedpref" path="." />
+    </device-transfer>
+</data-extraction-rules>

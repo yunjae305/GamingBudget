@@ -1,0 +1,176 @@
+# CLAUDE.md — 가계부 앱 인수인계
+
+본인용 안드로이드 가계부 앱. 화면과 기능은 전부 `app/src/main/assets/index.html` 한 파일(바닐라 JS)에 있고, 안드로이드 쪽은 이 파일을 띄우는 WebView 껍데기 + 결제 알림 감지 서비스다.
+
+작업 언어는 한국어. UI 문구도 한국어로 쓴다.
+
+---
+
+## 1. 구조
+
+```
+ledger/
+├─ app/src/main/assets/index.html   ← 앱 전체 (HTML+CSS+JS 단일 파일, 약 2천 줄)
+├─ app/src/main/java/net/nn33/ledger/
+│   ├─ MainActivity.java   WebView 호스트, 자동 업데이트, 파일 선택, JS 브리지, 뒤로가기
+│   ├─ PayListener.java    NotificationListenerService — 결제 알림 원문 수집
+│   └─ PendingStore.java   수집한 알림을 SharedPreferences에 보관
+├─ app/src/main/res/values/strings.xml   update_url (개인 빌드 자동 업데이트 주소)
+├─ app/src/main/res/xml/    backup_rules / data_extraction_rules — 자동 백업에 files/ 포함, live/ 제외
+├─ tests/                  jsdom 테스트 (npm test): 대기열, 파서 문구 모음, 게임 기록, 백업
+├─ PRIVACY.md              개인정보처리방침 (스토어 제출용, 알림 접근 권한 설명)
+├─ keystore.properties.example   릴리스 서명 설정 본보기 (실제 파일·jks 는 gitignore)
+└─ .github/workflows/build-apk.yml   push하면 테스트 → 디버그 APK, 시크릿 있으면 릴리스 APK/AAB
+```
+
+빌드: AGP 8.9.1 / Gradle 8.11.1 / JDK 17 / compileSdk 36 / targetSdk 36 / minSdk 24. Gradle 래퍼 jar는 없다(CI는 `gradle/actions/setup-gradle`). 로컬: JDK 17 은 `C:\Users\winz\.dal-bbam-android\jdk17\jdk-17.0.20.1+1`, Gradle 8.11.1 은 `~/.gradle/wrapper/dists` 에 캐시돼 있다. 안드로이드 스튜디오 번들 JBR(25)로는 Gradle 이 안 돈다.
+
+**빌드 타입이 두 가지다.** `debug` = 개인용(원격 업데이트 켬), `release` = 스토어용(원격 업데이트 끔, `BuildConfig.REMOTE_UPDATE`). 서명은 `keystore.properties` 또는 `LEDGER_*` 환경 변수에서 읽고, 없으면 release 는 서명 없이 빌드된다.
+
+## 2. 배포·업데이트 방식 (중요)
+
+- **개인(debug) 빌드만** 원격 업데이트를 한다. 앱이 켜질 때 `update_url`에서 최신 `index.html`을 받아 `files/live/index.html`을 교체한다. **스토어(release) 빌드는 안 한다** — 원격에서 받은 코드가 JS 브리지를 만지는 길을 막기 위해서. 스토어용 갱신은 스토어 배포로.
+- APK 의 versionCode 가 바뀌면(설치·업데이트) 항상 APK 안의 원본을 `live/` 에 다시 복사한다. 자동 백업이 옛 `live/` 를 되살리지 못하도록 백업 규칙에서 `live/` 는 제외.
+- 켠 뒤 12초 안에 받아지면 즉시 reload, 아니면 다음 실행 때 적용.
+- 2KB 미만이거나 앞 400바이트에 `<title>가계부</title>` 이 없으면 무시. 임시 파일에 받은 뒤 rename.
+- WebView 는 `appassets.androidplatform.net` 밖으로는 절대 이동하지 않는다(`shouldOverrideUrlLoading` 이 외부 링크를 브라우저로 넘김). 파일·content 접근도 꺼 둠.
+- 내부 저장소와 assets 모두 `https://appassets.androidplatform.net` 오리진으로 서빙(WebViewAssetLoader). **오리진이 고정이라 localStorage 데이터가 업데이트 후에도 유지된다.** 이 오리진을 바꾸면 사용자 데이터가 사라지니 절대 바꾸지 말 것.
+- `strings.xml`의 `update_url`은 아직 `OWNER/REPO` 자리표시자다. 이 상태면 업데이트 확인을 건너뛴다. 저장소는 공개여야 raw 주소로 받을 수 있다.
+
+**APK 재빌드가 필요한 변경**: Java 코드, 매니페스트, 리소스(이름·아이콘). 그 외 화면/기능 변경은 `index.html`만 push하면 된다.
+
+## 3. 네이티브 ↔ 화면 연결
+
+`MainActivity`가 `window.Android`로 노출:
+- `takePending()` → 쌓인 알림 JSON 배열 `[{pkg,text,time}]`을 꺼내고 비움
+- `hasNotifAccess()` → 알림 접근 허용 여부. `notifConnected()` → 감지 서비스가 실제로 붙어 있는지(삼성 절전으로 끊길 수 있음)
+- `openNotifAccess()` / `openBatterySettings()` → 시스템 설정 화면 열기
+- `setBars(dark)` → 상태 바·내비 바 아이콘 색과 창 배경. 화면의 `applyTheme` 이 부른다
+- `mirror(json)` / `readMirror()` → 전체 기록 미러 `files/mirror.json` 쓰기/읽기 (§4 백업)
+- `builtinAiKey()` → 빌드 때 `.env` 에서 박은 AI 키(없으면 ""). 화면의 `aiKey()` 는 설정 키 → 내장 키 순
+- `saveFile(name, content)` → 시스템 저장 창(SAF)으로 파일 내보내기. 결과는 `window.__savedFile(ok)` 로 돌아옴
+
+네이티브 → 화면: `__pullPending()`(onResume), `__back()`(뒤로가기), `__savedFile(ok)`, 그리고 창 인셋을 `--sat`/`--sab` CSS 변수로 밀어 넣는다.
+
+**엣지투엣지**: targetSdk 35+ 는 시스템 바 뒤까지 그리는 게 강제라 `EdgeToEdge.enable` 을 쓰고, 인셋을 재서 페이지의 `--sat`/`--sab` 에 넣는다(index.html 은 `env(safe-area-inset-*)` 대신 이 변수를 쓴다). 키보드가 올라오면 루트 뷰에 그만큼 패딩을 줘서 입력칸이 가려지지 않게 한다.
+
+`onResume`마다 `window.__pullPending()` 호출 → 화면 쪽 `parseOne()`으로 해석해 결제 대기열(`inbox`)에 넣는다. 같은 때 `requestRebind` 로 감지 서비스를 다시 붙인다.
+
+뒤로가기: `MainActivity.BACK_JS`의 `[오버레이 id, 닫기 버튼 id]` 목록을 위에서부터 검사해 열린 것을 닫는다. **새 시트/전체화면을 추가하면 이 목록에도 넣어야 한다.**
+
+`WebChromeClient.onShowFileChooser`(파일 선택)는 백업 파일 가져오기(`<input type="file">`)에 쓴다.
+
+`PayListener` 필터: 금액(`○○원`) + 결제 단어(승인/결제/사용/출금/입금/이체/체크카드/신용카드)가 같이 있어야 하고, 광고/수신거부/쿠폰/이벤트와 결제 예정·청구·명세서 안내는 버린다. 화면 쪽 `parseOne` 도 같은 것을 한 번 더 거른다(`SKIPWORD`). 1분 안의 완전히 같은 문구는 1건만(알림 갱신 재게시 대응). **그 외 중복 제거는 하지 않는다(사용자 결정, §6 참고).** SMS 권한은 쓰지 않는다 — 문자도 메시지 앱 알림으로 읽는다.
+
+## 4. index.html 내부
+
+### 저장
+`load(path)` / `save(path,obj)` — localStorage(`gb:` 접두어). 저장 400ms 디바운스 뒤 `scheduleMirror()` 가 2.5초 디바운스로 전체 기록을 `Android.mirror()` 에 넘긴다.
+
+### 백업 (두 겹)
+1. **미러** — `dumpAll()` 이 `gb:` 키 전부를 `{app:"ledger",ver:1,at,data:{키:값}}` 로 묶어 네이티브 `files/mirror.json` 에 둔다. 안드로이드 자동 백업·기기 이전이 이 파일을 옮기고, `init` 에서 기록이 하나도 없는데(`hasRecords()`) 미러가 있으면 `restoreAll()` 로 되살린 뒤 reload.
+2. **파일** — 설정 시트(`themeSheet`, 제목은 "설정")의 백업 내보내기/가져오기. 같은 JSON 형식. 앱에선 `Android.saveFile` (SAF), 브라우저에선 `<a download>`. 가져오기는 `#bkAlert` 로 확인 뒤 전부 덮어쓰고 reload. 마지막 백업 시각은 `gb:meta/backup`.
+
+| 키 | 내용 |
+|---|---|
+| `config/main` | `cfg` 전체 (아래) |
+| `months/YYYY-MM` | `{txs:[...]}` 가계부 내역 |
+| `index/summary` | `{months:{YYYY-MM:{i,e,s}}}` 월별 수입/지출/저축 합계 |
+| `game/YYYY-MM` | `{items:[...]}` 게임 결제 기록 |
+| `index/gsummary` | `{months:{YYYY-MM:합계}}` |
+| `inbox/pending` | `{items:[...]}` 결제 대기열 |
+| `gb:theme` | 화면 모드 (localStorage 직접) |
+| `gb:meta/backup` | 마지막 백업 파일 내보내기 시각 (ISO) |
+| `gb:ai/key` | Gemini API 키. **백업·미러 제외**(`dumpAll` 에서 이 키만 빼고 담는다) |
+| `gb:ai/model` `gb:ai/name` `gb:ai/persona` | AI 모델명·캐릭터 이름·말투 설정. 백업에 포함 |
+| `gb:ai/note/YYYY-MM` | 그 달 생성한 `{comment,advice,at}`. 한 달에 한 번 캐시, 백업에 포함 |
+
+`cfg` = `{budget:{total,cat:{}}, plan:{income,envelopes[],goal}, assets[], gameNames[], gameGuard:{month,daily,perGame{}}, gameGrps:{게임:[카테고리]}, gameProducts:{게임:[{id,name,desc,price,grp}]}}`
+
+### 데이터 모양
+- 가계부 내역 `tx`: `{id,d:"YYYY-MM-DD",type:"income"|"expense"|"saving",amount,cat,memo}`
+- 게임 결제 기록: `{id,d,game,name,desc,grp,list(정가),price(실결제),qty}` — 합계는 `gAmt(g)=price*qty`. 새 기록은 qty 1, 할인 여부는 `price<list`.
+- 대기열 항목: `{id,amount,d,merchant,type,cat,sel,src}`
+
+### 게임 탭 구조 (최근 개편)
+- 게임 목록 → 게임 상세(= **결제 기록 목록** + 한도/이름 설정)
+- "결제 기록 추가" → 제품 선택 화면(`pickScreen`): 고정 카탈로그(`CATALOG`) + 사용자 제품(`cfg.gameProducts`) → 제품 누르면 결제 금액 시트(정가로 채워짐, 할인 시 금액만 수정)
+- "목록에 없는 결제 직접 입력", "새 제품"
+- `CATALOG`의 명조·젠레스 존 제로 구성은 사용자가 스크린샷으로 확정한 것. 그룹 순서 월정액 → 패스 → 패키지 → 충전. 게임 내 재화로 사는 상품은 넣지 않는다.
+- 게임 기록은 가계부 수입·지출에 **합산하지 않는다.**
+
+### 통계 탭 AI 카드
+- `renderStat()` 맨 위에 캐릭터 카드(`.aiCard`, `aiCardHtml()`)가 항상 뜬다. 초상화는 `/assets/img/character.png`(절대경로, WebViewAssetLoader 의 `/assets/` 핸들러) — 320×320 얼굴 크롭, 투명 배경. 원본 전신 일러스트(1086×1448)는 `tools/character-full.png` 에 두고 APK 에는 넣지 않는다. 파일이 없어도 `onerror` 로 그라데이션 원만 남고 안 깨진다. 미리보기(`tools/artifact-preview.html`)는 절대경로를 못 쓰니 `character.png` 상대경로로 바꿔치기해서 같이 publish 한다.
+- 키가 없으면 "설정에서 키 넣기"만 뜬다. 키를 넣으면(설정 시트, §6) `aiGenerate()` 가 Gemini `generateContent` 를 직접 fetch 로 부른다 — 서버를 안 거치고 폰에서 곧장 나간다.
+- 보내는 내용은 `aiPrompt(ym)`: 이번 달 총수입/지출/저축, 예산 대비 사용률, **카테고리별 합계 숫자**, 전달 대비 증감뿐이다. 가게 이름·메모 등 개별 거래 내용은 절대 보내지 않는다.
+- 응답은 `generationConfig.responseMimeType:"application/json"` 로 강제해 `{comment,advice}` 만 파싱한다. 한 달에 한 번 `gb:ai/note/YYYY-MM` 에 캐시하고, "다시 생성"을 눌러야 다시 부른다(비용·트래픽 아끼려고 자동 재호출 안 함).
+- 모델 기본값은 `gemini-flash-lite-latest`(무료 사용량이 있는 가장 가벼운 모델의 최신 별칭), 캐릭터 이름 기본값 "루나", 말투(persona)도 설정에서 바꿀 수 있다.
+
+### 공통 유틸
+- 금액 입력은 반드시 `bindMoney(el, onChange)` 사용 → 입력 중 `1,234원` 서식, 커서는 "원" 앞. 값 표시는 `moneyStr(v)`.
+- `parseN`, `fmt`, `esc`, `uid`, `todayISO`, `pad`
+- 오버레이: 하단 시트 `.sheet`(+`scrim`), 전체화면 `.screen`, 가운데 팝업 `.alertwrap`. 열 때 `lockScroll(true)`.
+- 설정 시트(`themeSheet`): 화면 모드 세그먼트 + 결제 알림 감지 상태(`renderSettings()`: 앱 밖/꺼짐/켜짐/끊김, 배터리 최적화 링크) + 백업. 알림 접근을 켜는 모든 경로는 `askNotifAccess()` → `#notifAlert` 설명 팝업을 먼저 거친다(스토어 정책의 "눈에 띄는 고지").
+- 안전 영역은 `var(--sat)`/`var(--sab)` 로 쓴다. 기본값은 `env(safe-area-inset-*)`, 앱에서는 네이티브가 실측값으로 덮어쓴다.
+- 시트를 닫은 뒤 돌아갈 화면은 `closeSheet()`의 `backToInbox / backToPick / backToDetail` 플래그로 처리.
+
+## 5. 디자인 규칙
+
+애플 HIG 스타일을 안드로이드에서 흉내 낸다.
+- iOS 시스템 컬러(`--blue #007AFF` 등)를 CSS 변수로, 라이트/다크/시스템 3단 전환(`data-theme`)
+- Inset grouped 리스트: 좌우 16px, 모서리 10px, 행 최소 44px, 구분선은 왼쪽 들여쓰기
+- 세그먼트, iOS 스위치, 그래버 달린 시트, 반투명 블러 내비·탭 바
+- 수입 파랑 `+`, 지출 빨강 `−`, 저축 초록 — 달력 셀에도 부호 표시
+- Material 요소(FAB 등)는 피하되, 내역 탭의 보라색 대기열 버튼(`#qfab`)은 사용자 요청으로 둔 예외
+- 이름이 길면 말줄임 대신 줄바꿈(`.ibrow.wrap`)
+- 금액 입력칸에 키보드가 필요 없는 항목(카테고리 등)은 `<select>` + "새로 만들기" 팝업
+
+## 6. 사용자가 확정한 결정 (바꾸기 전에 물어볼 것)
+
+- 결제 대기열: **중복 제거 안 함.** 전부 대기열에 올리고 사용자가 확인 후 일괄 저장.
+- 봉투(배분 탭): 합계 100% 이내로 제한. 슬라이더는 0~100 전 구간이지만 남은 몫 이상은 안 올라감.
+- 최근 6개월 통계는 **지출만** 표시.
+- 주별 지출은 그 달 1~7, 8~14… 날짜 기준(요일 기준 아님).
+- 제품 정의에는 날짜·수량이 없다(정가·이름·상품 목록·카테고리만).
+- 달력은 **내역 탭·전체 화면 둘 다 보기 전용**이다. 날짜를 누르면 그날 기록이 아래에 펼쳐지고(다시 누르면 접힘), 기록을 누르면 수정은 된다. 날짜 눌러서 새로 추가하는 동작은 없다 — 추가는 `+` 버튼으로. 두 달력은 `calCard`/`dayCard` 를 같이 쓴다.
+- 게임 탭에서는 상단 수입/지출/차액 카드를 숨긴다.
+- 결제 대기열 화면에는 **목록과 일괄 저장 버튼만** 둔다. 각 건을 개별로 켜고 끄고, 날짜 머리글로 그날 전체를 한 번에 켜고 끈다. 문자 붙여넣기 입력은 없앴다 — 알림이 감지돼서 대기열에 들어오는 게 기본이고, 손으로 넣을 일은 `+` 버튼으로 한다.
+- 대기열 위에 안내가 뜨는 건 **기본이 성립하지 않을 때뿐이다.** 알림 접근이 꺼졌거나(→ 켜기 링크), 앱 밖(브라우저)일 때. 정상 동작 중에는 아무것도 띄우지 않는다.
+- 게임 제품을 사진으로 읽어 오는 기능(Gemini)은 **제거했다.** AI는 통계 탭 캐릭터 카드로 옮겼다(위 "통계 탭 AI 카드" 참고).
+- **AI API 키는 코드나 저장소에 절대 넣지 않는다.** 두 경로만 허용: ① 앱 설정에서 직접 입력(`gb:ai/key`), ② 프로젝트 루트 `.env`(gitignore) 의 `GEMINI_API_KEY` 를 빌드 때 `BuildConfig.AI_KEY` 로 박아 넣기(사용자 결정, 2026-09-21). ①이 ②보다 우선. `.env` 키는 기본 **debug 빌드에만** 들어가고 release 는 `AI_KEY_IN_RELEASE=true` 를 적어야 들어간다(APK 에서 꺼낼 수 있으니). 백업·미러에는 어느 쪽도 담지 않는다. Claude 는 키 값을 파일에 적지 않는다 — 사용자가 직접 적는다.
+- AI 에 보내는 데이터는 카테고리별 지출 합계 숫자뿐이다. 가게 이름·메모 등 개별 거래 내용은 보내지 않는다.
+- AI 조언은 한 달에 한 번 생성해 캐시한다. 화면을 열 때마다 자동으로 다시 부르지 않는다 — 사용자가 "다시 생성"을 눌러야 한다.
+- 스토어 빌드에는 원격 업데이트를 넣지 않는다. 개인 빌드(debug)만 한다.
+- 백업은 자동 미러 + 수동 파일, 두 겹. 자동 복원은 **기록이 하나도 없을 때만**(기존 기록을 덮지 않는다).
+- 알림 접근 권한은 설명 팝업을 먼저 보여 준 뒤에 설정으로 보낸다.
+
+## 7. 알려진 할 일 / 주의
+
+- `update_url` 설정 필요 (§2, 개인 빌드만 해당)
+- 알림 감지는 아직 실기기 검증 전 — 사용자 폰(삼성)에서 확인 필요. 파서는 `tests/parser.test.js` 의 문구 모음으로 검증한 것이고, 실제 카드사 문구가 다르면 그 원문을 테스트에 추가하고 파서를 고친다.
+- 릴리스 서명은 `keystore.properties` 를 만들어야 켜진다(§1). 스토어 제출은 README "스토어에 올리기" 순서대로.
+- 엣지투엣지·키보드 인셋 처리는 실기기(특히 API 35+)에서 확인 필요.
+- 웹폰트(Inter, Noto Sans KR)는 온라인일 때만 로드. 오프라인이면 시스템 폰트.
+- `JavascriptInterface`는 원격에서 받은 index.html에도 열려 있다. `update_url` 저장소 권한을 본인만 갖도록 유지할 것.
+
+## 8. 검증
+
+```bash
+npm install        # jsdom
+npm test           # tests/*.test.js 실행
+node --check <(sed -n '/<script>/,/<\/script>/p' app/src/main/assets/index.html | sed '1d;$d')   # 대략적 문법 확인
+```
+테스트는 `window.Android`를 흉내 내서 알림 → 대기열 → 저장 흐름, 카드사·은행·페이별 알림 문구 파싱(`parser.test.js`, 새 형식은 여기에 추가), 게임 결제 기록(할인 포함) 흐름, 저장 → 미러 → 새 설치 자동 복원 → 파일 내보내기를 클릭으로 따라간다. `index.html`을 고친 뒤 꼭 돌릴 것.
+
+APK 빌드 확인(로컬, Git Bash):
+```bash
+JAVA_HOME="C:/Users/winz/.dal-bbam-android/jdk17/jdk-17.0.20.1+1" ~/.gradle/wrapper/dists/gradle-8.11.1-bin/*/gradle-8.11.1/bin/gradle assembleDebug assembleRelease --no-daemon -q
+```
+
+### 아티팩트 미리보기
+
+`tools/artifact-preview.html` 은 폰 크기 화면에 `index.html` 을 그대로 띄우는 개발용 무대다.
+Claude Code에서 이 파일을 아티팩트로 publish하면서 `index.html` 을 `app.html` 로 같이 올리면,
+브라우저에서 실시간으로 보면서 고칠 수 있다. `index.html` 을 고친 뒤 다시 publish하면 갱신된다.
+
+미리보기에는 `window.Android`(알림 감지)와 자동 업데이트가 없다. 화면·기능 확인용이다.

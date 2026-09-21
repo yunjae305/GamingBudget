@@ -1,0 +1,62 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 화면 테스트 (jsdom)
+        run: npm ci --ignore-scripts && npm test
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      # 개인용: 원격 업데이트가 켜진 디버그 APK
+      - name: Build debug APK
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ledger-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      # 스토어용: 서명 키가 시크릿에 있을 때만. 원격 업데이트 없음.
+      #   LEDGER_KEYSTORE_B64  = base64 로 인코딩한 .jks
+      #   LEDGER_STORE_PASSWORD / LEDGER_KEY_ALIAS / LEDGER_KEY_PASSWORD
+      - name: Decode keystore
+        if: ${{ secrets.LEDGER_KEYSTORE_B64 != '' }}
+        run: echo "${{ secrets.LEDGER_KEYSTORE_B64 }}" | base64 -d > release.jks
+
+      - name: Build release APK + AAB
+        if: ${{ secrets.LEDGER_KEYSTORE_B64 != '' }}
+        env:
+          LEDGER_STORE_FILE: release.jks
+          LEDGER_STORE_PASSWORD: ${{ secrets.LEDGER_STORE_PASSWORD }}
+          LEDGER_KEY_ALIAS: ${{ secrets.LEDGER_KEY_ALIAS }}
+          LEDGER_KEY_PASSWORD: ${{ secrets.LEDGER_KEY_PASSWORD }}
+        run: gradle assembleRelease bundleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ secrets.LEDGER_KEYSTORE_B64 != '' }}
+        with:
+          name: ledger-release
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error

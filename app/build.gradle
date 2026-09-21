@@ -1,0 +1,80 @@
+plugins { id 'com.android.application' }
+
+/* 릴리스 서명. keystore.properties(저장소에 넣지 않음) 또는 CI 환경 변수에서 읽는다.
+   둘 다 없으면 release 는 서명 없이 빌드된다(설치 불가, 스토어 업로드 불가). */
+def ks = new Properties()
+def ksFile = rootProject.file("keystore.properties")
+if (ksFile.exists()) ksFile.withInputStream { ks.load(it) }
+[storeFile: "LEDGER_STORE_FILE", storePassword: "LEDGER_STORE_PASSWORD",
+ keyAlias: "LEDGER_KEY_ALIAS", keyPassword: "LEDGER_KEY_PASSWORD"].each { k, env ->
+    if (System.getenv(env)) ks[k] = System.getenv(env)
+}
+def hasSigning = ks['storeFile'] != null
+
+/* AI 키. 프로젝트 루트 .env(저장소에 넣지 않음) 또는 GEMINI_API_KEY 환경 변수에서 읽어
+   BuildConfig.AI_KEY 로 앱에 박는다. APK 를 뜯으면 꺼낼 수 있는 값이라 기본은 debug(개인용)에만
+   넣고, release 에는 .env 에 AI_KEY_IN_RELEASE=true 를 적어야 들어간다. 없으면 빈 문자열 —
+   그때는 사용자가 앱 설정에서 직접 입력한다. */
+def env = new Properties()
+def envFile = rootProject.file(".env")
+if (envFile.exists()) envFile.withInputStream { env.load(it) }
+def aiKey = System.getenv("GEMINI_API_KEY") ?: (env['GEMINI_API_KEY'] ?: "")
+aiKey = aiKey.trim().replaceAll(/^["']|["']$/, "")
+def aiKeyLiteral = '"' + aiKey.replace('\\', '\\\\').replace('"', '\\"') + '"'
+def aiKeyInRelease = (env['AI_KEY_IN_RELEASE'] ?: System.getenv("AI_KEY_IN_RELEASE") ?: "false").trim() == "true"
+
+android {
+    namespace 'net.nn33.ledger'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "net.nn33.ledger"
+        minSdk 24
+        targetSdk 36
+        versionCode 2
+        versionName "1.1"
+    }
+
+    signingConfigs {
+        release {
+            if (hasSigning) {
+                storeFile rootProject.file(ks['storeFile'])
+                storePassword ks['storePassword']
+                keyAlias ks['keyAlias']
+                keyPassword ks['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        // 개인용: 켤 때마다 update_url 에서 index.html 을 받아 덮어쓴다
+        debug {
+            buildConfigField "boolean", "REMOTE_UPDATE", "true"
+            buildConfigField "String", "AI_KEY", aiKeyLiteral
+        }
+        // 스토어용: 원격 업데이트 없음. 화면은 항상 APK 안의 원본. 갱신은 스토어 배포로.
+        release {
+            buildConfigField "boolean", "REMOTE_UPDATE", "false"
+            buildConfigField "String", "AI_KEY", aiKeyInRelease ? aiKeyLiteral : '""'
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasSigning) signingConfig signingConfigs.release
+        }
+    }
+
+    buildFeatures { buildConfig true }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // androidx 가 끌어오는 kotlin-stdlib 버전이 서로 달라 중복 클래스가 나는 걸 BOM 으로 맞춘다
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.activity:activity:1.9.2'
+    implementation 'androidx.core:core:1.13.1'
+    implementation 'androidx.webkit:webkit:1.11.0'
+}

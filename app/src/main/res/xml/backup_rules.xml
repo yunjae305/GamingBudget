@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 안드로이드 11 이하용 자동 백업 규칙. files/mirror.json(전체 기록 미러)을 옮기는 게 목적.
+     live/ 는 화면 파일이라 뺀다 — 새 APK 의 원본이 옛 화면에 덮이면 안 된다. -->
+<full-backup-content>
+    <include domain="file" path="." />
+    <exclude domain="file" path="live" />
+    <include domain="sharedpref" path="." />
+</full-backup-content>

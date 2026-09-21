@@ -11,29 +11,11 @@
 
 ## 1. 저장소 만들기
 
-1. GitHub에서 **공개(Public)** 저장소를 만듭니다.
-   자동 업데이트가 `raw.githubusercontent.com` 주소로 파일을 받기 때문에 비공개면 동작하지 않습니다.
-2. 이 폴더를 통째로 올립니다.
+저장소는 https://github.com/yunjae305/GamingBudget 입니다. **공개** 저장소여야 합니다 — 자동 업데이트가 `raw.githubusercontent.com` 주소로 파일을 받기 때문에 비공개로 바꾸면 동작하지 않습니다.
 
-```bash
-cd ledger
-git init
-git add .
-git commit -m "가계부 앱"
-git branch -M main
-git remote add origin https://github.com/<내계정>/<저장소이름>.git
-git push -u origin main
-```
+## 2. 업데이트 주소
 
-## 2. 업데이트 주소 설정 — 이걸 빼먹으면 자동 갱신이 안 됩니다
-
-`app/src/main/res/values/strings.xml` 의 `update_url` 에서 `OWNER/REPO` 를 본인 것으로 바꾸고 push 하세요.
-
-```xml
-<string name="update_url">https://raw.githubusercontent.com/내계정/저장소이름/main/app/src/main/assets/index.html</string>
-```
-
-직접 운영하는 서버가 있으면 그 주소를 넣어도 됩니다. GitHub보다 반영이 빠릅니다.
+`app/src/main/res/values/strings.xml` 의 `update_url` 은 이 저장소(`yunjae305/GamingBudget`)의 raw 주소로 설정돼 있습니다. 저장소를 옮기면 이 값을 바꾸고 APK 를 한 번 다시 설치해야 합니다. 직접 운영하는 서버 주소를 넣어도 됩니다.
 
 ## 3. APK 받기
 

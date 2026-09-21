@@ -35,7 +35,7 @@ ledger/
 - 2KB 미만이거나 앞 400바이트에 `<title>가계부</title>` 이 없으면 무시. 임시 파일에 받은 뒤 rename.
 - WebView 는 `appassets.androidplatform.net` 밖으로는 절대 이동하지 않는다(`shouldOverrideUrlLoading` 이 외부 링크를 브라우저로 넘김). 파일·content 접근도 꺼 둠.
 - 내부 저장소와 assets 모두 `https://appassets.androidplatform.net` 오리진으로 서빙(WebViewAssetLoader). **오리진이 고정이라 localStorage 데이터가 업데이트 후에도 유지된다.** 이 오리진을 바꾸면 사용자 데이터가 사라지니 절대 바꾸지 말 것.
-- `strings.xml`의 `update_url`은 아직 `OWNER/REPO` 자리표시자다. 이 상태면 업데이트 확인을 건너뛴다. 저장소는 공개여야 raw 주소로 받을 수 있다.
+- `update_url` 은 `https://raw.githubusercontent.com/yunjae305/GamingBudget/main/app/src/main/assets/index.html` (공개 저장소, 2026-09-21 설정). `OWNER/REPO` 가 들어 있으면 업데이트 확인을 건너뛴다.
 
 **APK 재빌드가 필요한 변경**: Java 코드, 매니페스트, 리소스(이름·아이콘). 그 외 화면/기능 변경은 `index.html`만 push하면 된다.
 
@@ -146,7 +146,6 @@ ledger/
 
 ## 7. 알려진 할 일 / 주의
 
-- `update_url` 설정 필요 (§2, 개인 빌드만 해당)
 - 알림 감지는 아직 실기기 검증 전 — 사용자 폰(삼성)에서 확인 필요. 파서는 `tests/parser.test.js` 의 문구 모음으로 검증한 것이고, 실제 카드사 문구가 다르면 그 원문을 테스트에 추가하고 파서를 고친다.
 - 릴리스 서명은 `keystore.properties` 를 만들어야 켜진다(§1). 스토어 제출은 README "스토어에 올리기" 순서대로.
 - 엣지투엣지·키보드 인셋 처리는 실기기(특히 API 35+)에서 확인 필요.

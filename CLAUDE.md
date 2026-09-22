@@ -18,12 +18,13 @@ ledger/
 ├─ app/src/main/res/values/strings.xml   update_url (개인 빌드 자동 업데이트 주소)
 ├─ app/src/main/res/xml/    backup_rules / data_extraction_rules — 자동 백업에 files/ 포함, live/ 제외
 ├─ tests/                  jsdom 테스트 (npm test): 대기열, 파서 문구 모음, 게임 기록, 백업, 알림 감지 진단
+├─ tools/                  개발용 — artifact-preview.html(미리보기 무대), setup-android.sh(클라우드 빌드 환경), character-full.png(원본 일러스트)
 ├─ PRIVACY.md              개인정보처리방침 (스토어 제출용, 알림 접근 권한 설명)
 ├─ keystore.properties.example   릴리스 서명 설정 본보기 (실제 파일·jks 는 gitignore)
 └─ .github/workflows/build-apk.yml   push하면 테스트 → 디버그 APK, 시크릿 있으면 릴리스 APK/AAB
 ```
 
-빌드: AGP 8.9.1 / Gradle 8.11.1 / JDK 17 / compileSdk 36 / targetSdk 36 / minSdk 24. Gradle 래퍼 jar는 없다(CI는 `gradle/actions/setup-gradle`). 로컬: JDK 17 은 `C:\Users\winz\.dal-bbam-android\jdk17\jdk-17.0.20.1+1`, Gradle 8.11.1 은 `~/.gradle/wrapper/dists` 에 캐시돼 있다. 안드로이드 스튜디오 번들 JBR(25)로는 Gradle 이 안 돈다.
+빌드: AGP 8.9.1 / Gradle 8.11.1 / JDK 17 / compileSdk 36 / targetSdk 36 / minSdk 24. Gradle 래퍼 jar는 없다(CI는 `gradle/actions/setup-gradle`). 로컬(윈도우 PC): JDK 17 은 `C:\Users\winz\.dal-bbam-android\jdk17\jdk-17.0.20.1+1`, Gradle 8.11.1 은 `~/.gradle/wrapper/dists` 에 캐시돼 있고, Android SDK 는 `C:\Users\winz\AppData\Local\Android\Sdk`. 안드로이드 스튜디오 번들 JBR(25)로는 Gradle 이 안 돈다. **클라우드 세션(리눅스)** 에서는 `tools/setup-android.sh` 가 이 셋을 홈 밑에 깐다(§8).
 
 **빌드 타입이 두 가지다.** `debug` = 개인용(원격 업데이트 켬), `release` = 스토어용(원격 업데이트 끔, `BuildConfig.REMOTE_UPDATE`). 서명은 `keystore.properties` 또는 `LEDGER_*` 환경 변수에서 읽고, 없으면 release 는 서명 없이 빌드된다.
 
@@ -181,6 +182,17 @@ APK 빌드 확인(로컬, Git Bash):
 ```bash
 JAVA_HOME="C:/Users/winz/.dal-bbam-android/jdk17/jdk-17.0.20.1+1" ANDROID_HOME="C:/Users/winz/AppData/Local/Android/Sdk" ~/.gradle/wrapper/dists/gradle-8.11.1-bin/*/gradle-8.11.1/bin/gradle assembleDebug assembleRelease --no-daemon -q
 ```
+
+### 클라우드 세션에서 APK 빌드
+
+클라우드 샌드박스에는 JDK·Gradle·Android SDK 가 없다. 한 번만:
+```bash
+bash tools/setup-android.sh && source ~/.ledger-tools/env.sh
+```
+JDK 17(Temurin)·Gradle 8.11.1·명령줄 도구·platform-tools·android-36·build-tools 35.0.0 을 `~/.ledger-tools` 에 받고 `local.properties`(gitignore) 를 쓴다. 이미 있으면 건너뛴다. 이후 빌드는 로컬과 같다: `gradle assembleDebug --no-daemon`. 새 셸마다 `source ~/.ledger-tools/env.sh` 를 다시 해야 한다.
+- 네트워크가 막혀 있으면 실패한다 — `api.adoptium.net`, `services.gradle.org`, `dl.google.com`, `maven.google.com`, `repo.maven.apache.org`, `plugins.gradle.org` 가 열려 있어야 한다.
+- `.env` 는 저장소에 없으니 클라우드에서 만든 debug APK 엔 내장 AI 키가 안 들어간다(설정에서 직접 넣은 키는 그대로 됨).
+- 클라우드 세션은 별도 브랜치 + PR 로 일한다. 폰 자동 업데이트는 `main` 을 읽으니 **merge 해야 화면이 반영**되고, 네이티브 변경은 어차피 APK 재설치다.
 
 ### 아티팩트 미리보기
 

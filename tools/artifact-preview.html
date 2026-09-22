@@ -194,6 +194,16 @@ body{
 
   document.getElementById('reload').addEventListener('click', refresh);
 
+  // srcdoc 은 부모 오리진을 물려받으므로 앱의 localStorage 가 곧 이 페이지의 localStorage 다.
+  // 앱이 쓰는 gb: 키만 지우고 다시 띄운다 — 샘플 알림이 새로고침마다 쌓이는 것도 여기서 털어 낸다.
+  document.getElementById('wipe').addEventListener('click', function(){
+    try{
+      Object.keys(localStorage).filter(function(k){ return k.indexOf('gb:')===0; })
+        .forEach(function(k){ localStorage.removeItem(k); });
+    }catch(e){}
+    refresh();
+  });
+
   // 안드로이드 WebView 스크롤바는 스크롤 중에만 잠깐 뜨는 오버레이라 자리를 차지하지
   // 않는다. 데스크톱 크롬의 상시 스크롤바가 폭을 먹어 레이아웃을 왜곡하지 않도록 지운다.
   app.addEventListener('load', function(){

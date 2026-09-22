@@ -17,7 +17,7 @@ ledger/
 │   └─ PendingStore.java   수집한 알림을 SharedPreferences에 보관
 ├─ app/src/main/res/values/strings.xml   update_url (개인 빌드 자동 업데이트 주소)
 ├─ app/src/main/res/xml/    backup_rules / data_extraction_rules — 자동 백업에 files/ 포함, live/ 제외
-├─ tests/                  jsdom 테스트 (npm test): 대기열, 파서 문구 모음, 게임 기록, 백업
+├─ tests/                  jsdom 테스트 (npm test): 대기열, 파서 문구 모음, 게임 기록, 백업, 알림 감지 진단
 ├─ PRIVACY.md              개인정보처리방침 (스토어 제출용, 알림 접근 권한 설명)
 ├─ keystore.properties.example   릴리스 서명 설정 본보기 (실제 파일·jks 는 gitignore)
 └─ .github/workflows/build-apk.yml   push하면 테스트 → 디버그 APK, 시크릿 있으면 릴리스 APK/AAB
@@ -49,6 +49,7 @@ ledger/
 - `mirror(json)` / `readMirror()` → 전체 기록 미러 `files/mirror.json` 쓰기/읽기 (§4 백업)
 - `builtinAiKey()` → 빌드 때 `.env` 에서 박은 AI 키(없으면 ""). 화면의 `aiKey()` 는 설정 키 → 내장 키 순
 - `saveFile(name, content)` → 시스템 저장 창(SAF)으로 파일 내보내기. 결과는 `window.__savedFile(ok)` 로 돌아옴
+- `rescanNotifs()` → 지금 상태 바에 떠 있는 알림을 다시 훑는다(§3 재스캔). `notifLog()` / `notifStats()` / `clearNotifLog()` / `noteDropped(pkg,text,time,why)` → 알림 감지 진단용 (§4 진단 화면)
 
 네이티브 → 화면: `__pullPending()`(onResume), `__back()`(뒤로가기), `__savedFile(ok)`, 그리고 창 인셋을 `--sat`/`--sab` CSS 변수로 밀어 넣는다.
 
@@ -60,7 +61,13 @@ ledger/
 
 `WebChromeClient.onShowFileChooser`(파일 선택)는 백업 파일 가져오기(`<input type="file">`)에 쓴다.
 
-`PayListener` 필터: 금액(`○○원`) + 결제 단어(승인/결제/사용/출금/입금/이체/체크카드/신용카드)가 같이 있어야 하고, 광고/수신거부/쿠폰/이벤트와 결제 예정·청구·명세서 안내는 버린다. 화면 쪽 `parseOne` 도 같은 것을 한 번 더 거른다(`SKIPWORD`). 1분 안의 완전히 같은 문구는 1건만(알림 갱신 재게시 대응). **그 외 중복 제거는 하지 않는다(사용자 결정, §6 참고).** SMS 권한은 쓰지 않는다 — 문자도 메시지 앱 알림으로 읽는다.
+`PayListener` 필터: 금액(`○○원`) + 결제 단어(승인/결제/사용/출금/입금/이체/체크카드/신용카드)가 같이 있어야 하고, 광고/수신거부/쿠폰/이벤트와 결제 예정·청구·명세서 안내는 버린다. 상주 알림(`isOngoing`, 잔액 표시 같은 것)과 그룹 요약도 뺀다. 화면 쪽 `parseOne` 도 같은 것을 한 번 더 거른다(`SKIPWORD`). SMS 권한은 쓰지 않는다 — 문자도 메시지 앱 알림으로 읽는다.
+
+**알림에서 글자를 긁는 범위가 넓다** — `collectText()` 가 title/bigText/text/subText/infoText/summaryText/textLines 에 더해 MessagingStyle 의 `EXTRA_MESSAGES`·`EXTRA_HISTORIC_MESSAGES` 까지 모은다. bigText·text 만 보면 문자(SMS) 결제 알림을 통째로 놓친다 — 삼성·구글 메시지는 MessagingStyle 이라 본문이 `EXTRA_MESSAGES` 에 들어가고, 안 읽은 문자가 여러 건이면 `EXTRA_TEXT` 는 "새 메시지 2개" 같은 요약으로 바뀐다.
+
+**재스캔** — 절전으로 서비스가 끊겨 있던 동안 온 알림은 콜백으로 오지 않는다. 그래서 서비스가 붙을 때(`onListenerConnected`)와 앱이 앞으로 올라올 때(`MainActivity.onResume` → `PayListener.rescan()`) `getActiveNotifications()` 로 상태 바에 남아 있는 알림을 다시 훑는다. 화면의 `pullNow()` 도 `rescanNotifs()` 를 먼저 부른다.
+
+중복 방지는 `PendingStore` 의 `seen` 키 목록이 한다(앱·게시시각·문구 해시, 3일치 300건). 대기열을 비워도 남아 있어서 재스캔이 같은 알림을 두 번 넣지 않는다. 1분 안의 완전히 같은 문구도 1건만(알림 갱신 재게시 대응). **그 외 중복 제거는 하지 않는다(사용자 결정, §6 참고)** — 금액이 같은 별개의 결제는 게시 시각이 달라서 그대로 통과한다.
 
 ## 4. index.html 내부
 
@@ -106,11 +113,20 @@ ledger/
 - 응답은 `generationConfig.responseMimeType:"application/json"` 로 강제해 `{comment,advice}` 만 파싱한다. 한 달에 한 번 `gb:ai/note/YYYY-MM` 에 캐시하고, "다시 생성"을 눌러야 다시 부른다(비용·트래픽 아끼려고 자동 재호출 안 함).
 - 모델 기본값은 `gemini-flash-lite-latest`(무료 사용량이 있는 가장 가벼운 모델의 최신 별칭), 캐릭터 이름 기본값 "루나", 말투(persona)도 설정에서 바꿀 수 있다.
 
+### 알림 감지 진단 (`diagScreen`)
+
+설정 › 감지 기록 보기. "결제 알림이 왜 안 들어오지"를 폰에서 직접 확인하는 유일한 수단이다.
+- 위: 알림 접근 / 감지 서비스 연결 / 실시간으로 본 알림 수 / 마지막 알림 시각. 그 아래 상태에 맞는 다음 할 일 한 줄.
+- 아래: 최근 40건의 감지 기록(앱·시각·결과·원문). 결과가 `대기열`·`대기열(재스캔)` 이면 초록, 아니면 주황(`금액 없음` 은 관계없는 알림이 대부분이라 아예 안 남긴다).
+- "지금 다시 확인" = `pullNow()` (재스캔 → `__pullPending`). "지우기" 는 기록만 비운다.
+- `takePending()` 이 저장소를 비운 뒤 `parseOne()` 이 실패하면 그 알림은 흔적 없이 사라진다. 그래서 화면 쪽도 버릴 때 `Android.noteDropped()` 로 이유를 남긴다.
+- 기록은 네이티브 SharedPreferences(`pay_pending`)에만 있다. localStorage·백업·미러에는 안 들어가고 폰 밖으로도 안 나간다.
+
 ### 공통 유틸
 - 금액 입력은 반드시 `bindMoney(el, onChange)` 사용 → 입력 중 `1,234원` 서식, 커서는 "원" 앞. 값 표시는 `moneyStr(v)`.
 - `parseN`, `fmt`, `esc`, `uid`, `todayISO`, `pad`
 - 오버레이: 하단 시트 `.sheet`(+`scrim`), 전체화면 `.screen`, 가운데 팝업 `.alertwrap`. 열 때 `lockScroll(true)`.
-- 설정 시트(`themeSheet`): 화면 모드 세그먼트 + 결제 알림 감지 상태(`renderSettings()`: 앱 밖/꺼짐/켜짐/끊김, 배터리 최적화 링크) + 백업. 알림 접근을 켜는 모든 경로는 `askNotifAccess()` → `#notifAlert` 설명 팝업을 먼저 거친다(스토어 정책의 "눈에 띄는 고지").
+- 설정 시트(`themeSheet`): 화면 모드 세그먼트 + 결제 알림 감지 상태(`renderSettings()`: 앱 밖/꺼짐/켜짐/끊김, 배터리 최적화 링크, 감지 기록 보기) + 백업. 알림 접근을 켜는 모든 경로는 `askNotifAccess()` → `#notifAlert` 설명 팝업을 먼저 거친다(스토어 정책의 "눈에 띄는 고지").
 - 안전 영역은 `var(--sat)`/`var(--sab)` 로 쓴다. 기본값은 `env(safe-area-inset-*)`, 앱에서는 네이티브가 실측값으로 덮어쓴다.
 - 시트를 닫은 뒤 돌아갈 화면은 `closeSheet()`의 `backToInbox / backToPick / backToDetail` 플래그로 처리.
 
@@ -146,7 +162,7 @@ ledger/
 
 ## 7. 알려진 할 일 / 주의
 
-- 알림 감지는 아직 실기기 검증 전 — 사용자 폰(삼성)에서 확인 필요. 파서는 `tests/parser.test.js` 의 문구 모음으로 검증한 것이고, 실제 카드사 문구가 다르면 그 원문을 테스트에 추가하고 파서를 고친다.
+- 알림 감지는 아직 실기기 검증 전 — 사용자 폰(삼성)에서 확인 필요. **막히면 설정 › 감지 기록 보기(§4 진단 화면)를 먼저 볼 것.** 파서는 `tests/parser.test.js` 의 문구 모음으로 검증한 것이고, 실제 카드사 문구가 다르면 그 원문을 테스트에 추가하고 파서를 고친다.
 - 릴리스 서명은 `keystore.properties` 를 만들어야 켜진다(§1). 스토어 제출은 README "스토어에 올리기" 순서대로.
 - 엣지투엣지·키보드 인셋 처리는 실기기(특히 API 35+)에서 확인 필요.
 - 웹폰트(Inter, Noto Sans KR)는 온라인일 때만 로드. 오프라인이면 시스템 폰트.
@@ -159,11 +175,11 @@ npm install        # jsdom
 npm test           # tests/*.test.js 실행
 node --check <(sed -n '/<script>/,/<\/script>/p' app/src/main/assets/index.html | sed '1d;$d')   # 대략적 문법 확인
 ```
-테스트는 `window.Android`를 흉내 내서 알림 → 대기열 → 저장 흐름, 카드사·은행·페이별 알림 문구 파싱(`parser.test.js`, 새 형식은 여기에 추가), 게임 결제 기록(할인 포함) 흐름, 저장 → 미러 → 새 설치 자동 복원 → 파일 내보내기를 클릭으로 따라간다. `index.html`을 고친 뒤 꼭 돌릴 것.
+테스트는 `window.Android`를 흉내 내서 알림 → 대기열 → 저장 흐름, 카드사·은행·페이별 알림 문구 파싱(`parser.test.js`, 새 형식은 여기에 추가), 게임 결제 기록(할인 포함) 흐름, 저장 → 미러 → 새 설치 자동 복원 → 파일 내보내기, 버린 알림이 진단 기록에 남는지(`diag.test.js`)를 클릭으로 따라간다. `index.html`을 고친 뒤 꼭 돌릴 것.
 
 APK 빌드 확인(로컬, Git Bash):
 ```bash
-JAVA_HOME="C:/Users/winz/.dal-bbam-android/jdk17/jdk-17.0.20.1+1" ~/.gradle/wrapper/dists/gradle-8.11.1-bin/*/gradle-8.11.1/bin/gradle assembleDebug assembleRelease --no-daemon -q
+JAVA_HOME="C:/Users/winz/.dal-bbam-android/jdk17/jdk-17.0.20.1+1" ANDROID_HOME="C:/Users/winz/AppData/Local/Android/Sdk" ~/.gradle/wrapper/dists/gradle-8.11.1-bin/*/gradle-8.11.1/bin/gradle assembleDebug assembleRelease --no-daemon -q
 ```
 
 ### 아티팩트 미리보기

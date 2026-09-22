@@ -101,6 +101,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String BACK_JS =
         "window.__back=function(){" +
         "var m=[['notifAlert','naCancel'],['bkAlert','bkCancel'],['grpAlert','grpCancel'],['gameChoose','gcCancel']," +
+        "['diagScreen','dgClose']," +
         "['sheet','fCancel'],['gSheet','gCancel'],['pSheet','pCancel'],['themeSheet','tDone']," +
         "['pickScreen','pkClose'],['calScreen','calClose']," +
         "['gDetail','gdClose'],['inboxSheet','ibClose']];" +
@@ -336,6 +337,8 @@ public class MainActivity extends AppCompatActivity {
                 NotificationListenerService.requestRebind(new ComponentName(this, PayListener.class));
             } catch (Exception ignored) {
             }
+            // 끊겨 있던 동안 온 결제는 콜백으로 오지 않는다. 상태 바에 남아 있는 알림을 다시 훑는다.
+            PayListener.rescan();
         }
         if (web != null) web.evaluateJavascript("window.__pullPending&&window.__pullPending()", null);
     }
@@ -361,6 +364,35 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public boolean notifConnected() {
             return PayListener.isConnected();
+        }
+
+        /** 진단 화면용 — 최근 감지 기록 [{pkg,text,time,res}] */
+        @JavascriptInterface
+        public String notifLog() {
+            return PendingStore.logJson(MainActivity.this);
+        }
+
+        /** 진단 화면용 — {sawAt, sawN, queued} */
+        @JavascriptInterface
+        public String notifStats() {
+            return PendingStore.statsJson(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void clearNotifLog() {
+            PendingStore.clearLog(MainActivity.this);
+        }
+
+        /** 상태 바에 떠 있는 알림을 지금 다시 훑는다. 화면 쪽이 곧바로 takePending() 을 부른다. */
+        @JavascriptInterface
+        public void rescanNotifs() {
+            PayListener.rescan();
+        }
+
+        /** 화면 파서가 해석하지 못해 버린 알림도 진단에 남긴다 */
+        @JavascriptInterface
+        public void noteDropped(String pkg, String text, long time, String why) {
+            PendingStore.log(MainActivity.this, pkg, text, time, why == null ? "화면에서 제외" : why);
         }
 
         @JavascriptInterface

@@ -195,6 +195,16 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .ibrow.wrap .body b{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.3}
 .ibrow.wrap .body span{display:block;line-height:1.45;margin-top:2px}
 .ibrow.wrap .step2{margin-top:2px}
+/* 알림 감지 진단 — 감지된 알림 원문과 처리 결과 */
+.dgrow{padding:11px 16px;position:relative}
+.dgrow+.dgrow::before{content:"";position:absolute;left:16px;right:0;top:0;height:.5px;background:var(--sep)}
+.dgrow .hd{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--label2)}
+.dgrow .hd .res{margin-left:auto;font-size:12px;font-weight:600;padding:2px 7px;border-radius:6px;
+  background:var(--fill);color:var(--label2);white-space:nowrap}
+.dgrow .hd .res.ok{background:rgba(52,199,89,.16);color:var(--green)}
+.dgrow .hd .res.no{background:rgba(255,149,0,.18);color:var(--orange)}
+.dgrow .raw{margin-top:5px;font-size:12.5px;line-height:1.45;color:var(--label);
+  white-space:pre-wrap;word-break:break-word}
 .sheetfoot{position:sticky;bottom:0;padding:10px 16px 10px;background:var(--navbg);
   -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-top:.5px solid var(--sep)}
 .screen{
@@ -451,6 +461,16 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
   <div class="screenbody" style="overflow:hidden;display:flex;flex-direction:column">
     <div class="calview" id="calView"><div class="caltrack" id="calTrack"></div></div>
   </div>
+</div>
+
+<div class="screen" id="diagScreen" role="dialog" aria-label="알림 감지 진단">
+  <div class="screennav"><div class="inner">
+    <button id="dgClose">닫기</button>
+    <span class="ttl">알림 감지 진단</span>
+    <button id="dgClear" style="color:var(--red)">지우기</button>
+  </div></div>
+  <div class="screenbody"><div id="dgBody"></div></div>
+  <div class="screenfoot"><button class="btn" id="dgScan">지금 다시 확인</button></div>
 </div>
 
 <div class="screen" id="gDetail" role="dialog" aria-label="게임 상세">
@@ -1246,21 +1266,28 @@ function renderSettings(){
   let on=false,linked=true;
   try{on=window.Android.hasNotifAccess();}catch(e){}
   try{if(window.Android.notifConnected)linked=window.Android.notifConnected();}catch(e){}
+  /* 감지 기록은 "왜 안 들어오지"를 폰에서 직접 확인하는 유일한 수단이라 권한과 무관하게 둔다 */
+  const diagRow=window.Android.notifLog?
+    '<button class="row tap" id="setDiagRow" style="width:100%;text-align:left"><span class="t">감지 기록 보기</span><span class="chev">›</span></button>':'';
   if(!on){
-    host.innerHTML='<button class="row tap" id="setNotifRow" style="width:100%;text-align:left"><span class="t">알림 접근</span><span class="val" style="color:var(--red)">꺼짐 · 켜기</span><span class="chev">›</span></button>';
+    host.innerHTML='<button class="row tap" id="setNotifRow" style="width:100%;text-align:left"><span class="t">알림 접근</span><span class="val" style="color:var(--red)">꺼짐 · 켜기</span><span class="chev">›</span></button>'+diagRow;
     note.textContent="켜두면 결제 알림이 자동으로 대기열에 들어옵니다.";
     $("setNotifRow").addEventListener("click",askNotifAccess);
+    bindDiagRow();
     return;
   }
   host.innerHTML='<div class="row"><span class="t">알림 접근</span><span class="val" style="color:'+(linked?"var(--green)":"var(--orange)")+'">'+(linked?"켜짐":"끊김")+'</span></div>'+
     (linked?'':'<button class="row tap" id="setNotifRow" style="width:100%;text-align:left"><span class="t">다시 연결</span><span class="val">알림 접근 설정</span><span class="chev">›</span></button>')+
-    (window.Android.openBatterySettings?'<button class="row tap" id="setBattRow" style="width:100%;text-align:left"><span class="t">배터리 최적화 제외</span><span class="chev">›</span></button>':'');
+    (window.Android.openBatterySettings?'<button class="row tap" id="setBattRow" style="width:100%;text-align:left"><span class="t">배터리 최적화 제외</span><span class="chev">›</span></button>':'')+
+    diagRow;
   note.textContent=linked?
     "삼성 폰은 절전 기능이 알림 감지를 끊을 수 있습니다. 결제 알림이 안 들어오면 배터리 최적화에서 이 앱을 제외하세요.":
     "권한은 켜져 있지만 감지 서비스가 끊겼습니다. 알림 접근 설정에서 껐다 켜거나, 배터리 최적화에서 이 앱을 제외하세요.";
   const r=$("setNotifRow");if(r)r.addEventListener("click",()=>{try{window.Android.openNotifAccess();}catch(e){}});
   const b=$("setBattRow");if(b)b.addEventListener("click",()=>{try{window.Android.openBatterySettings();}catch(e){}});
+  bindDiagRow();
 }
+function bindDiagRow(){const r=$("setDiagRow");if(r)r.addEventListener("click",openDiag);}
 /* 알림 접근을 켜기 전에 무엇을 읽는지 먼저 알린다 (스토어 정책상 필수이기도 하다) */
 function askNotifAccess(){$("notifAlert").classList.add("open");}
 $("naCancel").addEventListener("click",()=>$("notifAlert").classList.remove("open"));
@@ -2047,8 +2074,15 @@ window.__pullPending=function(){
   try{arr=JSON.parse(window.Android.takePending()||"[]");}catch(e){arr=[];}
   let n=0;
   arr.forEach(x=>{
-    const it=parseOne(String(x.text||""));
-    if(!it)return;
+    const raw=String(x.text||"");
+    const it=parseOne(raw);
+    /* takePending() 이 이미 저장소를 비웠다. 여기서 버리면 흔적도 없이 사라지니
+       왜 버렸는지는 진단 기록에 남긴다. */
+    if(!it){
+      try{if(window.Android.noteDropped)window.Android.noteDropped(x.pkg||"",raw,Number(x.time)||0,
+        SKIPWORD.test(raw)?"취소·안내 문구":"금액을 못 읽음");}catch(e){}
+      return;
+    }
     if(x.time){const t=new Date(Number(x.time));
       it.d=t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate());}
     it.src=x.pkg||"";it.sel=true;
@@ -2057,11 +2091,78 @@ window.__pullPending=function(){
   if(n){saveInbox();render();
     if($("inboxSheet").classList.contains("open"))renderInbox();
     toast("결제 "+n+"건이 대기열에 들어왔습니다");}
+  return n;
 };
+/* 상태 바에 아직 떠 있는 알림까지 다시 훑고 가져온다 (절전으로 끊겼던 동안 놓친 것 회수) */
+function pullNow(){
+  try{if(window.Android&&window.Android.rescanNotifs)window.Android.rescanNotifs();}catch(e){}
+  return window.__pullPending()||0;
+}
 
 $("qfab").addEventListener("click",()=>{
-  if(window.__pullPending)window.__pullPending();
+  pullNow();
   openInbox();
+});
+
+/* ── 알림 감지 진단 ── 결제 알림이 왜 안 들어오는지 폰에서 직접 확인하는 화면 */
+const APPNAME={
+  "com.samsung.android.messaging":"삼성 메시지","com.google.android.apps.messaging":"구글 메시지",
+  "com.kakao.talk":"카카오톡","viva.republica.toss":"토스","com.nhn.android.search":"네이버",
+  "com.shcard.smartpay":"신한카드","com.kbcard.cxh.appcard":"KB국민카드","com.hyundaicard.appcard":"현대카드",
+  "com.lcacapp":"롯데카드","com.wooricard.smartapp":"우리카드","kvp.jjy.MispAndroid320":"ISP/페이북",
+  "com.samsung.android.spay":"삼성월렛","com.kakaobank.channel":"카카오뱅크","com.kbstar.kbbank":"KB스타뱅킹",
+  "com.wooribank.smart.npib":"우리WON뱅킹","com.shinhan.sbanking":"신한SOL"
+};
+const appLabel=p=>APPNAME[p]||String(p||"").split(".").filter(Boolean).pop()||"알 수 없음";
+const stampLabel=ms=>{const t=new Date(Number(ms)||0);
+  return (t.getMonth()+1)+"/"+t.getDate()+" "+pad(t.getHours())+":"+pad(t.getMinutes());};
+function openDiag(){renderDiag();$("diagScreen").classList.add("open");lockScroll(true);}
+function renderDiag(){
+  const host=$("dgBody");
+  if(!hasBridge()||!window.Android.notifLog){
+    host.innerHTML='<p class="note" style="margin-top:16px">설치한 안드로이드 앱에서만 볼 수 있습니다. 앱을 새로 빌드해 설치하면 여기에 감지 기록이 쌓입니다.</p>';
+    return;
+  }
+  let on=false,linked=false,st={},log=[];
+  try{on=window.Android.hasNotifAccess();}catch(e){}
+  try{linked=!!(window.Android.notifConnected&&window.Android.notifConnected());}catch(e){}
+  try{st=JSON.parse((window.Android.notifStats&&window.Android.notifStats())||"{}")||{};}catch(e){st={};}
+  try{log=JSON.parse(window.Android.notifLog()||"[]")||[];}catch(e){log=[];}
+  const seenN=Number(st.sawN)||0;
+  let tip;
+  if(!on)tip="알림 접근이 꺼져 있습니다. 설정에서 먼저 켜 주세요.";
+  else if(!linked)tip="권한은 켜져 있는데 감지 서비스가 붙어 있지 않습니다. 알림 접근 설정에서 껐다 켜고, 배터리 최적화에서 이 앱을 제외하세요.";
+  else if(!seenN)tip="서비스는 붙어 있지만 알림을 아직 하나도 보지 못했습니다. 배터리 최적화에서 이 앱을 제외한 뒤 폰을 재시작하고, 결제 알림이 실제로 상태 바에 뜨는지 확인하세요.";
+  else if(!log.length)tip="알림은 들어오고 있는데 결제로 보이는 것이 아직 없었습니다. 카드 결제를 한 뒤 여기를 다시 보세요.";
+  else tip="아래는 최근에 들어온 알림과 처리 결과입니다. 결제인데 걸러졌다면 그 원문을 알려 주세요.";
+  host.innerHTML=
+    '<p class="hdr">상태</p><div class="card">'+
+      '<div class="row"><span class="t">알림 접근</span><span class="val" style="color:'+(on?"var(--green)":"var(--red)")+'">'+(on?"켜짐":"꺼짐")+'</span></div>'+
+      '<div class="row"><span class="t">감지 서비스</span><span class="val" style="color:'+(linked?"var(--green)":"var(--orange)")+'">'+(linked?"연결됨":"끊김")+'</span></div>'+
+      '<div class="row"><span class="t">본 알림</span><span class="val">'+fmt(seenN)+'건</span></div>'+
+      '<div class="row"><span class="t">마지막 알림</span><span class="val">'+(st.sawAt?stampLabel(st.sawAt):"없음")+'</span></div>'+
+    '</div><p class="note">'+esc(tip)+'</p>'+
+    '<p class="hdr">감지 기록 (최근 '+log.length+'건)</p>'+
+    (log.length?'<div class="card" id="dgList"></div>':'<div class="card"><p class="empty">아직 기록이 없습니다.</p></div>')+
+    '<p class="note">이 기록은 이 폰 안에만 남고 어디로도 보내지 않습니다.</p>';
+  const list=$("dgList");if(!list)return;
+  log.slice().reverse().forEach(e=>{
+    const queued=/^대기열/.test(e.res||"");
+    const r=document.createElement("div");r.className="dgrow";
+    r.innerHTML='<div class="hd"><span>'+esc(appLabel(e.pkg))+'</span><span>'+esc(stampLabel(e.time))+'</span>'+
+      '<span class="res '+(queued?"ok":"no")+'">'+esc(e.res||"")+'</span></div>'+
+      '<div class="raw">'+esc(e.text||"")+'</div>';
+    list.appendChild(r);
+  });
+}
+$("dgClose").addEventListener("click",()=>{$("diagScreen").classList.remove("open");});
+$("dgClear").addEventListener("click",()=>{
+  try{if(window.Android.clearNotifLog)window.Android.clearNotifLog();}catch(e){}
+  renderDiag();toast("기록을 지웠습니다");
+});
+$("dgScan").addEventListener("click",()=>{
+  const n=pullNow();renderDiag();
+  toast(n?"결제 "+n+"건을 가져왔습니다":"새로 가져올 결제가 없습니다");
 });
 
 /* ── 월 이동 ── */

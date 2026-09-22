@@ -5,6 +5,7 @@
   아티팩트 본문은 /_t 경로로 서빙돼서 상대경로가 엉뚱한 곳을 가리킨다.
   srcdoc 은 부모 오리진을 물려받으므로 localStorage 도 그대로 쓰인다.
 -->
+<meta charset="utf-8">
 <title>가계부</title>
 <style>
 :root{
@@ -165,10 +166,15 @@ body{
         // onerror 로 그냥 그라데이션 원만 보인다.
         t=t.replace('/assets/img/character.png','character.png');
         if(seed){
-          var js='<scr'+'ipt>(function(){var g=false,P='+JSON.stringify(seed)+';'+
+          var js='<scr'+'ipt>(function(){var g=false,P='+JSON.stringify(seed)+','+
+                 'L='+JSON.stringify(SEEDLOG(seed))+';'+
                  'window.Android={takePending:function(){if(g)return "[]";g=true;return JSON.stringify(P);},'+
                  'hasNotifAccess:function(){return true;},notifConnected:function(){return true;},'+
-                 'openNotifAccess:function(){},setBars:function(){}};})();</scr'+'ipt>';
+                 'openNotifAccess:function(){},openBatterySettings:function(){},setBars:function(){},'+
+                 'notifLog:function(){return JSON.stringify(L);},'+
+                 'notifStats:function(){return JSON.stringify({sawAt:Date.now()-42e4,sawN:'+(seed.length+137)+',queued:0});},'+
+                 'clearNotifLog:function(){L=[];},rescanNotifs:function(){},'+
+                 'noteDropped:function(p,x,tm,w){L.push({pkg:p,text:x,time:tm,res:w});}};})();</scr'+'ipt>';
           t=t.replace('<head>', function(){ return '<head>'+js; });
         }
         app.removeAttribute('src');
@@ -221,6 +227,15 @@ KB국민체크(5678) 출금 4,500원 GS25 역삼점 잔액 120,300원`},
       {pkg:'com.kbstar.kbbank', time:at(1,10,0), text:`[Web발신]
 KB국민 입금 2,400,000원 급여 잔액 3,120,000원`}
     ];
+  }
+
+  // 설정 › 감지 기록 보기 화면에 보여 줄 가짜 로그. 대기열에 들어간 것들에 더해,
+  // 네이티브 필터에서 걸러진 광고 알림을 하나 섞어 실제 화면 모양을 확인할 수 있게 한다.
+  function SEEDLOG(seed){
+    var log=seed.map(function(x){ return {pkg:x.pkg, text:x.text, time:x.time, res:'대기열'}; });
+    log.splice(2,0,{pkg:'com.shcard.smartpay', time:Date.now()-72e5, res:'광고·안내',
+      text:'(광고)신한카드\n이번 달 10만원 이상 결제하고 5,000원 캐시백 받으세요\n무료수신거부 080-xxx'});
+    return log;
   }
 
   var useSeed=true, seedBtn=document.getElementById('seed');

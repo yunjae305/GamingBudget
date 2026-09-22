@@ -29,8 +29,12 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      # 개인용: 원격 업데이트가 켜진 디버그 APK
+      # 개인용: 원격 업데이트가 켜진 디버그 APK.
+      #   LEDGER_DEBUG_KEYSTORE_B64 = base64 로 인코딩한 debug.keystore (PC 의 ~/.android/debug.keystore).
+      #   있으면 그 키로 서명해서 PC·클라우드에서 만든 APK 와 서로 덮어쓰기가 된다. 없으면 실행마다 새 키.
       - name: Build debug APK
+        env:
+          LEDGER_DEBUG_KEYSTORE_B64: ${{ secrets.LEDGER_DEBUG_KEYSTORE_B64 }}
         run: gradle assembleDebug --no-daemon
 
       - uses: actions/upload-artifact@v4

@@ -31,6 +31,22 @@
 2. 파일 관리자에서 누르고, "출처를 알 수 없는 앱" 설치를 허용합니다.
 3. 플레이 프로텍트가 경고해도 **무시하고 설치**를 누르면 됩니다.
 
+## 5. 개인용 서명 키 고정 ("앱이 설치되지 않았습니다" 가 뜰 때)
+
+개인용(debug) APK 는 빌드한 컴퓨터의 `~/.android/debug.keystore` 로 서명됩니다. 이 파일은 컴퓨터마다, GitHub Actions 실행마다, 클라우드 세션마다 새로 생기기 때문에 **다른 곳에서 만든 APK 는 이미 깔린 앱 위에 설치되지 않습니다**(서명이 달라서 안드로이드가 거부). 한 번 키를 정해 두면 어디서 빌드하든 덮어쓰기가 됩니다.
+
+1. 지금 폰에 깔린 앱을 빌드한 PC 에서 키를 base64 로 뽑습니다(Git Bash). 결과가 클립보드에 들어갑니다.
+   ```bash
+   base64 -w0 ~/.android/debug.keystore | clip
+   ```
+2. GitHub 저장소 **Settings → Secrets and variables → Actions** 에 `LEDGER_DEBUG_KEYSTORE_B64` 이름으로 붙여 넣습니다. 이후 Actions 의 `ledger-apk` 가 이 키로 서명됩니다.
+3. 클라우드 세션(Claude Code on the web)에서도 빌드하려면 그 환경의 **환경 변수**에 같은 이름·값을 넣습니다.
+4. 다른 PC 에서 빌드하려면 파일을 `app/debug.keystore` 로 복사해 두면 됩니다(`*.keystore` 는 gitignore 라 저장소에 올라가지 않습니다).
+
+비밀번호·별칭은 안드로이드 기본 debug 키 그대로(`android` / `androiddebugkey`)입니다. 이 키는 **저장소에 넣지 마세요** — 공개 저장소라 누구나 내 앱 위에 덮어씌워지는 APK 를 만들 수 있게 됩니다.
+
+이미 서명이 다른 APK 를 설치해야 한다면: 앱 → 설정 → **백업 파일 내보내기** → 앱 삭제 → 새 APK 설치 → **백업 파일 가져오기** 순서로 합니다.
+
 ---
 
 ## 앱 고치기

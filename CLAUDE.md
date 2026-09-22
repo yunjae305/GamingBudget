@@ -26,7 +26,9 @@ ledger/
 
 빌드: AGP 8.9.1 / Gradle 8.11.1 / JDK 17 / compileSdk 36 / targetSdk 36 / minSdk 24. Gradle 래퍼 jar는 없다(CI는 `gradle/actions/setup-gradle`). 로컬(윈도우 PC): JDK 17 은 `C:\Users\winz\.dal-bbam-android\jdk17\jdk-17.0.20.1+1`, Gradle 8.11.1 은 `~/.gradle/wrapper/dists` 에 캐시돼 있고, Android SDK 는 `C:\Users\winz\AppData\Local\Android\Sdk`. 안드로이드 스튜디오 번들 JBR(25)로는 Gradle 이 안 돈다. **클라우드 세션(리눅스)** 에서는 `tools/setup-android.sh` 가 이 셋을 홈 밑에 깐다(§8).
 
-**빌드 타입이 두 가지다.** `debug` = 개인용(원격 업데이트 켬), `release` = 스토어용(원격 업데이트 끔, `BuildConfig.REMOTE_UPDATE`). 서명은 `keystore.properties` 또는 `LEDGER_*` 환경 변수에서 읽고, 없으면 release 는 서명 없이 빌드된다.
+**빌드 타입이 두 가지다.** `debug` = 개인용(원격 업데이트 켬), `release` = 스토어용(원격 업데이트 끔, `BuildConfig.REMOTE_UPDATE`). release 서명은 `keystore.properties` 또는 `LEDGER_*` 환경 변수에서 읽고, 없으면 서명 없이 빌드된다.
+
+**debug 서명 키도 고정한다** (2026-09-22). 기본 debug 키는 빌드하는 컴퓨터(PC·CI 실행·클라우드 세션)마다 새로 생겨서, 다른 곳에서 만든 APK 는 폰에 덮어쓰기 설치가 거부된다. `app/build.gradle` 이 `app/debug.keystore`(gitignore) → `LEDGER_DEBUG_KEYSTORE_B64` 환경 변수(base64) 순으로 키를 찾고, 둘 다 없으면 자동 키다. 기준 키는 사용자 PC 의 `~/.android/debug.keystore` 이고, 비밀번호·별칭은 기본값(`android`/`androiddebugkey`). CI 는 같은 이름의 시크릿을, 클라우드는 환경 변수를 쓴다(README §5). **키 파일을 저장소에 넣지 않는다** — 공개 저장소라 누구나 사용자 앱 위에 덮어씌워지는 APK 를 만들 수 있게 된다.
 
 ## 2. 배포·업데이트 방식 (중요)
 
@@ -194,6 +196,7 @@ JDK 17(Temurin)·Gradle 8.11.1·명령줄 도구·platform-tools·android-36·bu
 - 네트워크가 막혀 있으면 실패한다 — `api.adoptium.net`, `services.gradle.org`, `dl.google.com`, `maven.google.com`, `repo.maven.apache.org`, `plugins.gradle.org` 가 열려 있어야 한다.
 - 출력에 `Picked up JAVA_TOOL_OPTIONS: ...` 줄이 반복돼 찍히는 건 샌드박스 프록시 설정이지 오류가 아니다.
 - `.env` 는 저장소에 없으니 클라우드에서 만든 debug APK 엔 내장 AI 키가 안 들어간다(설정에서 직접 넣은 키는 그대로 됨).
+- 클라우드 환경 변수에 `LEDGER_DEBUG_KEYSTORE_B64` 가 없으면 debug APK 가 세션마다 다른 자동 키로 서명돼 **폰의 기존 앱 위에 설치되지 않는다**(§1). 빌드 전에 `echo ${LEDGER_DEBUG_KEYSTORE_B64:+있음}` 으로 확인하고, 없으면 사용자에게 알린다. 서명 확인: `$ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs <apk>`.
 - 클라우드 세션은 별도 브랜치 + PR 로 일한다. 폰 자동 업데이트는 `main` 을 읽으니 **merge 해야 화면이 반영**되고, 네이티브 변경은 어차피 APK 재설치다.
 
 ### 아티팩트 미리보기

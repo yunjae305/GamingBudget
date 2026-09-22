@@ -185,12 +185,14 @@ JAVA_HOME="C:/Users/winz/.dal-bbam-android/jdk17/jdk-17.0.20.1+1" ANDROID_HOME="
 
 ### 클라우드 세션에서 APK 빌드
 
-클라우드 샌드박스에는 JDK·Gradle·Android SDK 가 없다. 한 번만:
+클라우드 샌드박스에는 JDK·Gradle·Android SDK 가 없다. 세션을 시작할 때:
 ```bash
 bash tools/setup-android.sh && source ~/.ledger-tools/env.sh
 ```
-JDK 17(Temurin)·Gradle 8.11.1·명령줄 도구·platform-tools·android-36·build-tools 35.0.0 을 `~/.ledger-tools` 에 받고 `local.properties`(gitignore) 를 쓴다. 이미 있으면 건너뛴다. 이후 빌드는 로컬과 같다: `gradle assembleDebug --no-daemon`. 새 셸마다 `source ~/.ledger-tools/env.sh` 를 다시 해야 한다.
+JDK 17(Temurin)·Gradle 8.11.1·명령줄 도구·platform-tools·android-36·build-tools 35.0.0 을 `~/.ledger-tools` 에 받고(약 900MB) `local.properties`(gitignore) 를 쓴다. 이미 있으면 건너뛴다. 이후 빌드는 로컬과 같다: `gradle assembleDebug assembleRelease --no-daemon -q` → `app/build/outputs/apk/{debug,release}/`. 새 셸마다 `source ~/.ledger-tools/env.sh` 를 다시 해야 한다. 2026-09-22 클라우드(리눅스 x64)에서 설치·테스트·debug/release 빌드 모두 확인함.
+- 컨테이너는 세션이 끝나면 사라진다. `~/.ledger-tools` 도 같이 사라지니 **새 클라우드 세션마다 다시 받는다**(몇 분 걸림).
 - 네트워크가 막혀 있으면 실패한다 — `api.adoptium.net`, `services.gradle.org`, `dl.google.com`, `maven.google.com`, `repo.maven.apache.org`, `plugins.gradle.org` 가 열려 있어야 한다.
+- 출력에 `Picked up JAVA_TOOL_OPTIONS: ...` 줄이 반복돼 찍히는 건 샌드박스 프록시 설정이지 오류가 아니다.
 - `.env` 는 저장소에 없으니 클라우드에서 만든 debug APK 엔 내장 AI 키가 안 들어간다(설정에서 직접 넣은 키는 그대로 됨).
 - 클라우드 세션은 별도 브랜치 + PR 로 일한다. 폰 자동 업데이트는 `main` 을 읽으니 **merge 해야 화면이 반영**되고, 네이티브 변경은 어차피 APK 재설치다.
 

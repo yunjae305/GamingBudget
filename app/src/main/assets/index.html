@@ -776,15 +776,16 @@ $("todayRow").addEventListener("click",()=>{tab="budget";window.scrollTo({top:0}
 function renderTop(){
   const[y,m]=ym.split("-");
   $("ym").textContent=y+"년 "+Number(m)+"월";
-  $("summaryCard").style.display=tab==="game"?"none":"";
-  if(tab!=="game"){
+  /* 게임 탭은 상단 카드가 없고, 예산 탭은 자기 오늘 카드가 있어서 상단 카드를 뺀다 (사용자 결정) */
+  $("summaryCard").style.display=(tab==="game"||tab==="budget")?"none":"";
+  if(tab!=="game"&&tab!=="budget"){
     const t=totals();
     $("sIn").textContent=fmt(t.i);$("sOut").textContent=fmt(t.e);$("sSav").textContent=fmt(t.s);
     const net=t.i-t.e-t.s,el=$("sNet");
     el.textContent=fmt(net)+"원";el.style.color=net<0?"var(--red)":"var(--label)";
-    /* 앱을 열면 오늘 쓸 수 있는 돈이 가장 먼저 보이게 — 내역·예산 탭에서만. 통계·자산·배분은 수입/지출/저축만. */
+    /* 앱을 열면 오늘 쓸 수 있는 돈이 가장 먼저 보이게 — 내역 탭에서만. 통계·자산·배분은 수입/지출/저축만. */
     const db=dailyBudget(),tr=$("todayRow"),st=$("sToday");
-    if(tab!=="tx"&&tab!=="budget")tr.style.display="none";
+    if(tab!=="tx")tr.style.display="none";
     else if(db){tr.style.display="";st.textContent=(db.rest<0?"−"+fmt(-db.rest)+"원 초과":fmt(db.rest)+"원");
       st.style.color=db.rest<0?"var(--red)":"var(--green)";st.style.fontWeight="600";}
     else if(todayISO().slice(0,7)===ym){tr.style.display="";st.textContent="예산 정하기";st.style.color="var(--label2)";st.style.fontWeight="";}

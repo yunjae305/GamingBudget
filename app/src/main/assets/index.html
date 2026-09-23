@@ -783,8 +783,8 @@ $("todayRow").addEventListener("click",()=>{tab="budget";window.scrollTo({top:0}
 function renderTop(){
   const[y,m]=ym.split("-");
   $("ym").textContent=y+"년 "+Number(m)+"월";
-  /* 상단 카드는 내역·통계·배분 탭에만. 게임은 원래 없고, 예산은 자기 오늘 카드, 자산은 원그래프가 있다 (사용자 결정) */
-  const noTop=tab==="game"||tab==="budget"||tab==="asset";
+  /* 상단 카드(오늘·수입/지출/저축)는 내역·통계 탭에만 (사용자 결정, 2026-09-24) */
+  const noTop=tab!=="tx"&&tab!=="stat";
   $("summaryCard").style.display=noTop?"none":"";
   if(!noTop){
     const t=totals();

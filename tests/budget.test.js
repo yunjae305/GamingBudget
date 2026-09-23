@@ -54,12 +54,12 @@ module.exports = async function () {
   assert(d.querySelector('[data-tab="budget"]').getAttribute("aria-selected") === "true", "오늘 카드 → 예산 탭");
   assert(!$("largeTitle"), "탭 위 큰 제목은 없어야 함");
 
-  /* 오늘 카드는 내역·예산 탭에서만. 통계·자산·배분은 수입/지출/저축 카드만 */
-  for (const k of ["stat", "plan"]) {
-    d.querySelector('[data-tab="' + k + '"]').click(); await wait(20);
-    assert($("todayRow").style.display === "none", k + " 탭에는 오늘 카드가 없어야 함");
-    assert($("summaryCard").style.display !== "none", k + " 탭에 수입/지출/저축 카드는 있어야 함");
-  }
+  /* 상단 카드는 내역·통계 탭에만. 통계는 수입/지출/저축만(오늘 줄 없음), 배분은 카드 자체가 없음 */
+  d.querySelector('[data-tab="stat"]').click(); await wait(20);
+  assert($("todayRow").style.display === "none", "통계 탭에는 오늘 카드가 없어야 함");
+  assert($("summaryCard").style.display !== "none", "통계 탭에 수입/지출/저축 카드는 있어야 함");
+  d.querySelector('[data-tab="plan"]').click(); await wait(20);
+  assert($("summaryCard").style.display === "none", "배분 탭에는 상단 카드가 없어야 함");
   d.querySelector('[data-tab="budget"]').click(); await wait(20);
   assert($("summaryCard").style.display === "none", "예산 탭에는 상단 카드(오늘·수입/지출/저축)가 없어야 함");
   /* 자산 탭: 상단 카드 대신 항목별 비율 원그래프 */

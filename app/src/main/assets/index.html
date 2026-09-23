@@ -355,10 +355,9 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
 
 <header class="nav" id="nav">
   <div class="bar">
-    <button class="appearance" id="themeBtn" aria-label="화면 모드">
-      <svg viewBox="0 0 24 24" width="23" height="23" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/>
-        <path d="M12 3a9 9 0 000 18V3z" fill="currentColor"/>
+    <button class="appearance" id="themeBtn" aria-label="메뉴">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+        <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
       </svg>
     </button>
     <button class="step" id="prev" aria-label="이전 달">‹</button>
@@ -511,7 +510,7 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
   <div class="grabber"></div>
   <div class="sheetnav">
     <span style="width:44px"></span>
-    <span class="ttl">설정</span>
+    <span class="ttl">메뉴</span>
     <button class="done" id="tDone">완료</button>
   </div>
   <p class="hdr">화면 모드</p>
@@ -521,6 +520,14 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <button data-v="dark">다크</button>
   </div>
   <p class="note" style="margin:0;padding:0 32px 22px">시스템을 고르면 기기의 다크 모드 설정을 그대로 따라갑니다.</p>
+  <p class="hdr">글씨 크기</p>
+  <div class="seg" id="fontSeg" style="margin-bottom:10px">
+    <button data-v="0.9">작게</button>
+    <button data-v="1">기본</button>
+    <button data-v="1.1">크게</button>
+    <button data-v="1.2">더 크게</button>
+  </div>
+  <p class="note" style="margin:0;padding:0 32px 22px">화면 전체가 같이 커지고 작아집니다.</p>
   <p class="hdr">결제 알림 감지</p>
   <div class="card" id="setNotif"></div>
   <p class="note" id="setNotifNote"></p>
@@ -1386,6 +1393,16 @@ function applyTheme(v){
   syncBars();
 }
 $("themeSeg").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>applyTheme(b.dataset.v)));
+/* 글씨 크기 — CSS 가 px 로 짜여 있어 루트 zoom 으로 화면 전체를 키운다(안드로이드 글꼴 크기 설정과 같은 느낌). gb:fontScale */
+function currentScale(){try{const v=parseFloat(localStorage.getItem("gb:fontScale"));return [0.9,1,1.1,1.2].includes(v)?v:1;}catch(e){return 1;}}
+function applyScale(v){
+  v=[0.9,1,1.1,1.2].includes(v)?v:1;
+  document.documentElement.style.zoom=v===1?"":String(v);
+  try{v===1?localStorage.removeItem("gb:fontScale"):localStorage.setItem("gb:fontScale",String(v));}catch(e){}
+  $("fontSeg").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",parseFloat(b.dataset.v)===v));
+}
+$("fontSeg").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>applyScale(parseFloat(b.dataset.v))));
+applyScale(currentScale());
 try{window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",syncBars);}catch(e){}
 
 /* 설정 시트의 알림 감지 상태·백업 줄 */

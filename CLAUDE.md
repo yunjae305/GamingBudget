@@ -95,6 +95,7 @@ ledger/
 | `index/gsummary` | `{months:{YYYY-MM:합계}}` |
 | `inbox/pending` | `{items:[...]}` 결제 대기열 |
 | `gb:theme` | 화면 모드 (localStorage 직접) |
+| `gb:fontScale` | 글씨 크기 0.9/1.1/1.2 (기본 1 이면 키 없음). 루트 `zoom` 으로 적용 |
 | `gb:meta/backup` | 마지막 백업 파일 내보내기 시각 (ISO) |
 | `gb:ai/key` | Gemini API 키. **백업·미러 제외**(`dumpAll` 에서 이 키만 빼고 담는다) |
 | `gb:ai/model` `gb:ai/name` `gb:ai/persona` | AI 모델명·캐릭터 이름·말투 설정. 백업에 포함 |
@@ -148,7 +149,7 @@ ledger/
 - 금액 입력은 반드시 `bindMoney(el, onChange)` 사용 → 입력 중 `1,234원` 서식, 커서는 "원" 앞. 값 표시는 `moneyStr(v)`.
 - `parseN`, `fmt`, `esc`, `uid`, `todayISO`, `pad`
 - 오버레이: 하단 시트 `.sheet`(+`scrim`), 전체화면 `.screen`, 가운데 팝업 `.alertwrap`. 열 때 `lockScroll(true)`.
-- 설정 시트(`themeSheet`): 화면 모드 세그먼트 + 결제 알림 감지 상태(`renderSettings()`: 앱 밖/꺼짐/켜짐/끊김, 배터리 최적화 링크, 감지 기록 보기) + 백업. 알림 접근을 켜는 모든 경로는 `askNotifAccess()` → `#notifAlert` 설명 팝업을 먼저 거친다(스토어 정책의 "눈에 띄는 고지").
+- 메뉴 시트(`themeSheet`, 제목 "메뉴", 왼쪽 위 바 3개 아이콘 `#themeBtn`): 화면 모드 세그먼트 + 글씨 크기 세그먼트(`applyScale`, 루트 zoom) + 결제 알림 감지 상태(`renderSettings()`: 앱 밖/꺼짐/켜짐/끊김, 배터리 최적화 링크, 감지 기록 보기) + 백업. 알림 접근을 켜는 모든 경로는 `askNotifAccess()` → `#notifAlert` 설명 팝업을 먼저 거친다(스토어 정책의 "눈에 띄는 고지").
 - 안전 영역은 `var(--sat)`/`var(--sab)` 로 쓴다. 기본값은 `env(safe-area-inset-*)`, 앱에서는 네이티브가 실측값으로 덮어쓴다.
 - 시트를 닫은 뒤 돌아갈 화면은 `closeSheet()`의 `backToInbox / backToPick / backToDetail` 플래그로 처리.
 

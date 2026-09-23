@@ -2,7 +2,7 @@
 const { boot, wait, assert } = require("./helpers");
 
 module.exports = async function () {
-  const { d, $, w, errors } = boot({ android: { setBars: () => {}, saveFile: () => {} } });
+  const { d, $, w, errors } = boot({ android: { setBars: () => {}, saveFile: () => {}, builtinAiKey: () => "test-key" } });
   await wait(300);
   const pad = (n) => String(n).padStart(2, "0");
   const now = new Date();
@@ -149,15 +149,10 @@ module.exports = async function () {
   assert(d.querySelectorAll(".bars.dense div").length === n, "일별 막대가 날짜 수만큼");
   assert(/가장 많이 쓴 날/.test(st), "가장 많이 쓴 날 표시");
 
-  /* 영수증 스캔: 키 없으면 설정으로, 키 있으면 사진 → Gemini → 대기열 */
+  /* 영수증 스캔: 내장 키로 사진 → Gemini → 대기열 */
   d.querySelector('[data-tab="tx"]').click(); await wait(20);
   $("qfab").click(); await wait(30);
   assert($("ibScan"), "대기열 화면에 영수증 스캔 버튼");
-  $("ibScan").click(); await wait(30);
-  assert($("themeSheet").classList.contains("open"), "키가 없으면 설정 시트가 열려야 함");
-  $("aiKeyInput").value = "test-key"; $("aiKeyInput").dispatchEvent(new w.Event("change"));
-  $("tDone").click(); await wait(30);
-  assert($("inboxSheet").classList.contains("open"), "설정을 닫으면 대기열로 돌아와야 함");
 
   let sent = null;
   w.fetch = async (url, opts) => {
@@ -216,4 +211,9 @@ module.exports = async function () {
   await wait(300);
   c.$("themeBtn").click(); await wait(30);
   assert(/새 APK 설치 필요/.test(c.$("setRemind").textContent), "브리지가 없으면 새 APK 안내");
+  c.$("tDone").click(); await wait(20);
+  c.$("qfab").click(); await wait(30);
+  c.$("ibScan").click(); await wait(30);
+  assert(/AI 키가 없습니다/.test(c.$("toast").textContent), "키 없는 빌드에서 영수증 스캔은 안내만 — 실제: " + c.$("toast").textContent);
+  assert(!c.$("themeSheet").classList.contains("open"), "설정 시트를 열지 않아야 함");
 };

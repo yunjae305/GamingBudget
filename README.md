@@ -110,8 +110,11 @@ git push
 
 통계 탭 맨 위에 캐릭터가 이번 달 지출을 논평하고 다음 달 조언을 줍니다. 기본은 꺼져 있습니다.
 
-1. 오른쪽 위 ◐ → **설정** → **AI 조언**에서 Gemini API 키를 넣습니다. "키 발급받기"로 Google AI Studio에서 무료로 받을 수 있습니다.
-   - 개인용 빌드라면 앱에서 안 넣어도 됩니다. 프로젝트 루트 `.env` 의 `GEMINI_API_KEY=` 뒤에 키를 적고 빌드하면 APK 에 들어갑니다(`.env.example` 참고, 저장소엔 안 올라감). 스토어용에는 기본으로 안 들어갑니다 — APK 를 뜯으면 키가 나오기 때문입니다.
+1. Gemini API 키는 **앱에 내장**됩니다. 앱에서 따로 넣는 칸은 없습니다. Google AI Studio(https://aistudio.google.com/apikey)에서 키를 받아 아래 중 빌드하는 곳에 넣습니다.
+   - PC: 프로젝트 루트 `.env` 의 `GEMINI_API_KEY=` 뒤에 적습니다(`.env.example` 참고, 저장소엔 안 올라감).
+   - GitHub Actions: 저장소 Settings → Secrets and variables → Actions 에 `GEMINI_API_KEY`.
+   - 클라우드 세션: 환경 변수 `GEMINI_API_KEY`.
+   - 스토어용에는 기본으로 안 들어갑니다 — APK 를 뜯으면 키가 나오기 때문입니다.
 2. 통계 탭에서 **생성하기**를 누르면 그 달 지출 요약(총액·카테고리별 합계·전달 대비 증감)만 키를 통해 Gemini 로 보내고, 코멘트와 다음 달 조언을 받아 보여줍니다. 가게 이름이나 메모는 보내지 않습니다.
 3. 한 달에 한 번 생성해 저장해 두고, 화면을 다시 열어도 새로 부르지 않습니다. 다시 만들려면 **다시 생성**을 누르세요.
 4. 캐릭터 그림은 `app/src/main/assets/img/character.png` 에 넣으면 나옵니다. 없어도 그라데이션 원으로 대신 보입니다.

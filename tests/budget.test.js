@@ -35,7 +35,9 @@ module.exports = async function () {
   assert(tc.includes(new Intl.NumberFormat("ko-KR").format(Math.abs(rest)) + "원"), "오늘 쓸 수 있는 돈 " + rest + " 기대 — 실제: " + tc);
   assert(tc.includes(new Intl.NumberFormat("ko-KR").format(allow) + "원"), "하루 기준 " + allow + " 기대 — 실제: " + tc);
   assert(tc.includes(left + "일"), "남은 날 " + left + " — 실제: " + tc);
-  assert(num($("sToday").textContent) === rest || (rest < 0 && num($("sToday").textContent) === -rest), "상단 카드에도 같은 금액 — 실제: " + $("sToday").textContent);
+  d.querySelector('[data-tab="tx"]').click(); await wait(20);
+  assert(num($("sToday").textContent) === rest || (rest < 0 && num($("sToday").textContent) === -rest), "내역 탭 상단 카드에도 같은 금액 — 실제: " + $("sToday").textContent);
+  d.querySelector('[data-tab="budget"]').click(); await wait(20);
 
   /* 예산 계산기: 2,000,000 − 500,000 − 300,000 = 1,200,000 → 총 예산으로 넣기 */
   type("bcIncome", "2000000"); type("bcFixed", "500000"); type("bcSaving", "300000"); await wait(20);
@@ -53,11 +55,27 @@ module.exports = async function () {
   assert(!$("largeTitle"), "탭 위 큰 제목은 없어야 함");
 
   /* 오늘 카드는 내역·예산 탭에서만. 통계·자산·배분은 수입/지출/저축 카드만 */
-  for (const k of ["stat", "asset", "plan"]) {
+  for (const k of ["stat", "plan"]) {
     d.querySelector('[data-tab="' + k + '"]').click(); await wait(20);
     assert($("todayRow").style.display === "none", k + " 탭에는 오늘 카드가 없어야 함");
     assert($("summaryCard").style.display !== "none", k + " 탭에 수입/지출/저축 카드는 있어야 함");
   }
+  d.querySelector('[data-tab="budget"]').click(); await wait(20);
+  assert($("summaryCard").style.display === "none", "예산 탭에는 상단 카드(오늘·수입/지출/저축)가 없어야 함");
+  /* 자산 탭: 상단 카드 대신 항목별 비율 원그래프 */
+  d.querySelector('[data-tab="asset"]').click(); await wait(20);
+  assert($("summaryCard").style.display === "none", "자산 탭에는 상단 카드가 없어야 함");
+  assert(/등록하면/.test($("adonut").textContent), "항목이 없으면 안내");
+  $("aadd").click(); await wait(20); $("aadd").click(); await wait(20);
+  const cards = d.querySelectorAll("#alist .card");
+  cards[0].querySelector(".nm").value = "주거래 통장"; cards[0].querySelector(".nm").dispatchEvent(new w.Event("input"));
+  cards[0].querySelector(".am").value = "3000000"; cards[0].querySelector(".am").dispatchEvent(new w.Event("input"));
+  cards[1].querySelector(".nm").value = "적금"; cards[1].querySelector(".nm").dispatchEvent(new w.Event("input"));
+  cards[1].querySelector(".am").value = "1000000"; cards[1].querySelector(".am").dispatchEvent(new w.Event("input"));
+  await wait(20);
+  assert($("adonut").querySelector("svg"), "자산 원그래프가 있어야 함");
+  assert(/주거래 통장.*75\.0%/.test($("adonut").textContent.replace(/\s+/g, " ")), "비율 75% — 실제: " + $("adonut").textContent);
+  assert(/4,000,000/.test($("adonut").textContent), "가운데는 순자산 합계");
   d.querySelector('[data-tab="tx"]').click(); await wait(20);
   assert($("todayRow").style.display !== "none", "내역 탭에는 오늘 카드가 보여야 함");
 

@@ -19,6 +19,13 @@ const CASES = [
   { pkg: "com.samsung.android.messaging", text: "[Web발신]\n[신한카드] 9월 결제 예정 금액 345,000원 (09/25 출금) 안내", want: null },
   { pkg: "com.shcard.smartpay", text: "신한카드 승인취소 12,000원 스타벅스", want: null },
   { pkg: "com.samsung.android.messaging", text: "(광고) 최대 30,000원 할인 쿠폰 지급! 결제 시 사용", want: null },
+  /* 2026-09-22 실기기(토스)에서 잘못 들어온 것들. 실제 원문은 설정 › 감지 기록 보기에서 확인해 맞출 것 — 아래는 추정 형식 */
+  { pkg: "viva.republica.toss", text: "실패\n토스뱅크 카드 | 12,000원 결제 실패 · 잔액 부족", want: null },
+  { pkg: "viva.republica.toss", text: "승인 거절\n스타벅스 5,600원 한도 초과", want: null },
+  { pkg: "viva.republica.toss", text: "129원 캐시백 🎉\n토스뱅크 카드 결제 금액의 1%를 돌려받았어요", want: null },
+  { pkg: "viva.republica.toss", text: "토스\n어제 결제한 12,900원의 129원을 캐시백으로 받았어요", want: null },
+  { pkg: "viva.republica.toss", text: "36원 캐시백 🎉\nSK텔레콤에서 12,000원 결제했어요", want: { name: "SK텔레콤", amt: 12000 } },
+  { pkg: "com.samsung.android.messaging", text: "[Web발신]\n[대신저축은행] 입금 250,000원 김*재 430502-**-****** 잔액 1,250,000원", want: { name: "대신저축은행 김*재", amt: 250000, type: "income" } },
 ];
 
 module.exports = async function () {

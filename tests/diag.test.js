@@ -27,7 +27,7 @@ module.exports = async function () {
   // 승인취소는 대기열에 넣지 않지만, 조용히 사라지지 않고 기록으로 남아야 한다
   assert(dropped.length === 1, "버린 알림 1건이 기록돼야 함 — 실제: " + dropped.length);
   assert(/승인취소/.test(dropped[0].text), "버린 알림의 원문이 그대로 넘어가야 함");
-  assert(dropped[0].why === "취소·안내 문구", "버린 이유 — 실제: " + dropped[0].why);
+  assert(dropped[0].why === "취소·실패·안내 문구", "버린 이유 — 실제: " + dropped[0].why);
 
   $("themeBtn").click();
   await wait(100);

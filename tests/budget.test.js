@@ -49,7 +49,17 @@ module.exports = async function () {
   /* 상단 카드 누르면 예산 탭 */
   d.querySelector('[data-tab="tx"]').click(); await wait(20);
   $("todayRow").click(); await wait(20);
-  assert($("largeTitle").textContent === "예산", "오늘 카드 → 예산 탭");
+  assert(d.querySelector('[data-tab="budget"]').getAttribute("aria-selected") === "true", "오늘 카드 → 예산 탭");
+  assert(!$("largeTitle"), "탭 위 큰 제목은 없어야 함");
+
+  /* 오늘 카드는 내역·예산 탭에서만. 통계·자산·배분은 수입/지출/저축 카드만 */
+  for (const k of ["stat", "asset", "plan"]) {
+    d.querySelector('[data-tab="' + k + '"]').click(); await wait(20);
+    assert($("todayRow").style.display === "none", k + " 탭에는 오늘 카드가 없어야 함");
+    assert($("summaryCard").style.display !== "none", k + " 탭에 수입/지출/저축 카드는 있어야 함");
+  }
+  d.querySelector('[data-tab="tx"]').click(); await wait(20);
+  assert($("todayRow").style.display !== "none", "내역 탭에는 오늘 카드가 보여야 함");
 
   /* 내역 목록 검색·필터 */
   d.querySelector('[data-tab="tx"]').click(); await wait(20);

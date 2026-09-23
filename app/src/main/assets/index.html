@@ -76,9 +76,8 @@ button{background:none;border:none;padding:0;cursor:pointer}
   width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center}
 .nav .appearance:active{background:var(--fill)}
 /* h1 기본 여백(위아래 0.67em ≈ 20px)을 지운다 — 안 지우면 제목과 내용 사이가 34px 로 벌어진다 */
-.large{margin:0;padding:2px 16px 8px;font-size:30px;font-weight:700;letter-spacing:-.022em;line-height:1.2}
 
-main{padding-top:2px;padding-bottom:calc(72px + var(--sab))}
+main{padding-top:10px;padding-bottom:calc(72px + var(--sab))}
 .hdr{font-size:13px;color:var(--label2);padding:0 32px 6px;letter-spacing:-.005em}
 .card{background:var(--group);border-radius:var(--r);margin:0 16px 22px;overflow:hidden}
 .card.pad{padding:16px}
@@ -372,8 +371,6 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <button class="plus" id="add" aria-label="내역 추가">＋</button>
   </div>
 </header>
-<h1 class="large" id="largeTitle">가계부</h1>
-
 <main>
   <div class="card" id="summaryCard">
     <button class="row tap" id="todayRow" style="width:100%;text-align:left"><span class="t">오늘 쓸 수 있는 돈</span><span class="val tnum" id="sToday"></span><span class="chev">›</span></button>
@@ -785,15 +782,14 @@ function renderTop(){
     $("sIn").textContent=fmt(t.i);$("sOut").textContent=fmt(t.e);$("sSav").textContent=fmt(t.s);
     const net=t.i-t.e-t.s,el=$("sNet");
     el.textContent=fmt(net)+"원";el.style.color=net<0?"var(--red)":"var(--label)";
-    /* 앱을 열면 오늘 쓸 수 있는 돈이 가장 먼저 보이게 */
+    /* 앱을 열면 오늘 쓸 수 있는 돈이 가장 먼저 보이게 — 내역·예산 탭에서만. 통계·자산·배분은 수입/지출/저축만. */
     const db=dailyBudget(),tr=$("todayRow"),st=$("sToday");
-    if(db){tr.style.display="";st.textContent=(db.rest<0?"−"+fmt(-db.rest)+"원 초과":fmt(db.rest)+"원");
+    if(tab!=="tx"&&tab!=="budget")tr.style.display="none";
+    else if(db){tr.style.display="";st.textContent=(db.rest<0?"−"+fmt(-db.rest)+"원 초과":fmt(db.rest)+"원");
       st.style.color=db.rest<0?"var(--red)":"var(--green)";st.style.fontWeight="600";}
     else if(todayISO().slice(0,7)===ym){tr.style.display="";st.textContent="예산 정하기";st.style.color="var(--label2)";st.style.fontWeight="";}
     else tr.style.display="none";
   }
-  const title=tab==="tx"?"가계부":TABS.find(x=>x[0]===tab)[1];
-  $("largeTitle").textContent=title;
   $("tabbar").querySelectorAll("button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
   const tb=$("tabbar").querySelector('[data-tab="tx"]');
   let bd=tb.querySelector(".badge");

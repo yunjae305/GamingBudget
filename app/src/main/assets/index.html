@@ -182,6 +182,8 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .wheel::-webkit-scrollbar{display:none}
 .wheel div{height:36px;line-height:36px;text-align:center;font-size:21px;scroll-snap-align:center;color:var(--label3);font-variant-numeric:tabular-nums;cursor:pointer}
 .wheel div.on{color:var(--label);font-weight:600}
+.seg.mini{margin:0;width:104px;flex:none}
+.seg.mini button{padding:5px 0;font-size:13px}
 .bignum{padding:14px 16px 6px}
 .bignum small{display:block;font-size:13px;color:var(--label2);margin-bottom:2px}
 .bignum b{display:block;font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1.15}
@@ -934,7 +936,6 @@ function renderBudget(){
   const v=view(),t=totals(),n=daysIn();
   const cur=todayISO().slice(0,7)===ym?new Date().getDate():n;
   const tot=cfg.budget.total||0,used=t.e,pc=tot?Math.min(100,used/tot*100):0;
-  const calc=Object.assign({income:0,fixed:0,saving:0},cfg.budget.calc||{});
   v.innerHTML=hdr("오늘")+'<div class="card" id="todayCard"></div>'+
     hdr("이번 달 예산")+
     card('<div class="row"><span class="t">총 예산</span><input id="bt" type="text" inputmode="numeric" placeholder="설정 안 함" value="'+moneyStr(tot)+'"></div>'+
@@ -947,14 +948,7 @@ function renderBudget(){
         '<span>'+cur+'일째</span><span>'+Math.max(0,n-cur)+'일 남음</span></div>'+
         '<div class="track"><i style="width:'+(cur/n*100)+'%;background:var(--indigo)"></i></div>'+
       '</div>')+
-    hdr("예산 계산")+
-    card('<div class="row"><span class="t">실수령액</span><input id="bcIncome" type="text" inputmode="numeric" placeholder="'+(cfg.plan.income?fmt(cfg.plan.income)+"원":"0")+'" value="'+moneyStr(calc.income)+'"></div>'+
-      '<div class="row"><span class="t">고정비</span><input id="bcFixed" type="text" inputmode="numeric" placeholder="월세·통신·보험·구독" value="'+moneyStr(calc.fixed)+'"></div>'+
-      '<div class="row"><span class="t">저축</span><input id="bcSaving" type="text" inputmode="numeric" placeholder="0" value="'+moneyStr(calc.saving)+'"></div>'+
-      '<div class="row"><span class="t">이번 달 쓸 수 있는 돈</span><span class="val tnum" id="bcOut" style="color:var(--label);font-weight:600"></span></div>'+
-      '<div class="row"><span class="t">하루</span><span class="val tnum" id="bcDay"></span></div>'+
-      '<button class="row tap" id="bcApply" style="width:100%;text-align:left"><span class="t blue">총 예산으로 넣기</span></button>')+
-    '<p class="note">실수령액에서 매달 거의 같은 지출(고정비)과 저축을 빼고 이 달 날짜 수로 나눕니다.</p>'+
+    '<p class="note">배분 탭에서 실수령액을 봉투로 나눈 뒤 총 예산으로 보낼 수도 있습니다.</p>'+
     hdr("카테고리 예산")+'<div id="bcats"></div>';
   paintToday();
   bindMoney($("bt"),val=>{
@@ -963,21 +957,6 @@ function renderBudget(){
     f.style.width=p+"%";f.className=p>=100?"over":p>=80?"warn":"";
     $("brest").textContent=val?"남은 "+fmt(Math.max(0,val-used))+"원":"—";
     saveCfg();paintToday();renderTop();
-  });
-  /* 예산 계산기 (오늘쓸돈 계산기 방식) */
-  const calcOut=()=>{
-    const inc=calc.income||cfg.plan.income||0,m=Math.max(0,inc-calc.fixed-calc.saving);
-    $("bcOut").textContent=inc?fmt(m)+"원":"—";
-    $("bcDay").textContent=inc?fmt(Math.floor(m/n))+"원":"—";
-    return m;
-  };
-  [["bcIncome","income"],["bcFixed","fixed"],["bcSaving","saving"]].forEach(([id,k])=>{
-    bindMoney($(id),val=>{calc[k]=val;cfg.budget.calc=calc;saveCfg();calcOut();});
-  });
-  calcOut();
-  $("bcApply").addEventListener("click",()=>{
-    const m=calcOut();if(!m){toast("실수령액을 넣어 주세요");return;}
-    cfg.budget.total=m;saveCfg();renderBudget();renderTop();toast("총 예산을 "+fmt(m)+"원으로 넣었습니다");
   });
   const map={};txs.filter(x=>x.type==="expense").forEach(x=>{map[x.cat]=(map[x.cat]||0)+x.amount;});
   const names=Array.from(new Set([...Object.keys(cfg.budget.cat),...Object.keys(map)]));
@@ -1206,7 +1185,33 @@ function renderAsset(){
   v.innerHTML=hdr("자산 구성")+'<div class="card" id="adonut"></div>'+
     hdr("항목")+'<div id="alist"></div>'+
     '<div class="linkrow"><button class="btn tint" id="aadd">항목 추가</button></div>'+
-    '<p class="note">가운데 숫자는 순자산(대출을 뺀 합계)이고, 비율은 대출을 뺀 자산끼리 나눈 것입니다.</p>';
+    '<p class="note">가운데 숫자는 순자산(대출을 뺀 합계)이고, 비율은 대출을 뺀 자산끼리 나눈 것입니다.</p>'+
+    hdr("저축 목표")+
+    card('<div class="row"><span class="t">이름</span><input id="gn" type="text" placeholder="예: 비상금" value="'+esc(cfg.plan.goal.name)+'"></div>'+
+      '<div class="row"><span class="t">목표 금액</span><input id="gt" type="text" inputmode="numeric" placeholder="0" value="'+moneyStr(cfg.plan.goal.target)+'"></div>'+
+      '<div class="row"><span class="t">시작 적립금</span><input id="gb" type="text" inputmode="numeric" placeholder="0" value="'+moneyStr(cfg.plan.goal.base)+'"></div>'+
+      '<div style="padding:12px 16px 16px"><div class="track" style="height:8px"><i id="gf"></i></div><div id="gl" style="font-size:15px"></div></div>')+
+    '<p class="note">기록한 저축이 자동으로 쌓입니다. 배분 탭에서 "저축으로 계산" 을 켠 봉투 금액으로 달성 시점을 어림합니다.</p>';
+  /* 저축 목표 (배분 탭에서 옮겨 옴, 2026-09-24) */
+  function goalLine(){
+    const g=cfg.plan.goal,saved=totalSaved(),fill=$("gf"),line=$("gl");
+    if(!fill||!line)return;
+    const monthly=cfg.plan.envelopes.filter(e=>e.saving).reduce((a,e)=>a+envAmt(e),0);
+    fill.style.width=(g.target?Math.min(100,saved/g.target*100):0)+"%";
+    if(!g.target){line.innerHTML='<span style="color:var(--label2)">목표 금액을 넣으면 달성 시점을 계산합니다.</span>';return;}
+    const left=Math.max(0,g.target-saved);
+    if(!left){line.innerHTML='<b>목표를 채웠습니다.</b> 모은 돈 '+fmt(saved)+'원';return;}
+    let t='<b class="tnum">'+fmt(saved)+'원 모음 · '+fmt(left)+'원 남음</b><br>';
+    if(monthly>0){
+      const m=Math.ceil(left/monthly),d=new Date();d.setDate(1);d.setMonth(d.getMonth()+m);
+      t+='<span style="color:var(--label2)">매달 '+fmt(monthly)+'원이면 약 '+m+'개월 뒤, '+d.getFullYear()+'년 '+(d.getMonth()+1)+'월쯤 채워집니다.</span>';
+    }else t+='<span style="color:var(--label2)">배분 탭에서 저축 봉투를 켜면 달성 시점이 나옵니다.</span>';
+    line.innerHTML=t;
+  }
+  $("gn").addEventListener("input",e=>{cfg.plan.goal.name=e.target.value;saveCfg();});
+  bindMoney($("gt"),x=>{cfg.plan.goal.target=x;goalLine();saveCfg();});
+  bindMoney($("gb"),x=>{cfg.plan.goal.base=x;goalLine();saveCfg();});
+  goalLine();
   /* 원그래프: 항목별 비율 (사용자 요청, 2026-09-24). 금액을 고치는 중에도 바로 따라간다. */
   const refresh=()=>{
     const ent=cfg.assets.filter(a=>a.type!=="대출"&&a.amount>0).map((a,i)=>[a.name||(a.type+" "+(i+1)),a.amount]).sort((x,y)=>y[1]-x[1]);
@@ -1233,64 +1238,68 @@ function renderAsset(){
   refresh();
 }
 
-/* ── 배분 ── */
+/* ── 배분 ── 실수령액을 봉투에 나눈다. 봉투마다 "%" 또는 "원" 을 골라 숫자만 기입하면 바로 막대에 반영된다
+   (사용자 결정, 2026-09-24: 슬라이더 없음, 기입식). 합계는 100% 이내 — 넘치는 입력은 남은 몫까지만 받는다(§6).
+   고른 봉투(기본: 생활비)를 예산 탭의 총 예산으로 보내는 버튼이 있다. 저축 목표는 자산 탭으로 옮겼다. */
+const planBase=()=>cfg.plan.income||totals().i||0;
+const envPct=e=>e.mode==="amt"?(planBase()?Math.min(100,(e.amt||0)/planBase()*100):0):(e.pct||0);
+const envAmt=e=>e.mode==="amt"?(e.amt||0):planBase()*(e.pct||0)/100;
 function renderPlan(){
   const v=view(),P=cfg.plan;
-  const base=()=>P.income||totals().i||0;
-  const sumPct=()=>P.envelopes.reduce((a,e)=>a+e.pct,0);
-  const amt=e=>base()*e.pct/100;
-  v.innerHTML=hdr("기준 금액")+
-    card('<div class="row"><span class="t">실수령액</span><input id="pi" type="text" inputmode="numeric" placeholder="'+(fmt(base())||"0")+'" value="'+moneyStr(P.income)+'"></div>')+
+  const sumPct=()=>P.envelopes.reduce((a,e)=>a+envPct(e),0);
+  const colorOf=(e,i)=>e.color||PAL[i%PAL.length];
+  const budgetEnv=()=>P.envelopes.find(e=>e.id===P.budgetEnv)||P.envelopes.find(e=>/생활/.test(e.name))||P.envelopes[0];
+  v.innerHTML=hdr("실수령액")+
+    card('<div class="row"><span class="t">이번 달 실수령액</span><input id="pi" type="text" inputmode="numeric" placeholder="'+(totals().i?fmt(totals().i)+"원":"0")+'" value="'+moneyStr(P.income)+'"></div>')+
+    '<p class="note">비워 두면 이번 달 수입 기록 합계를 씁니다.</p>'+
+    hdr("나눈 결과")+
     card('<div style="padding:14px 16px"><div id="sb" style="display:flex;height:32px;border-radius:8px;overflow:hidden"></div>'+
       '<div style="display:flex;justify-content:space-between;margin-top:10px;font-size:15px" class="tnum">'+
       '<span id="restLbl"></span><span id="restVal" style="color:var(--label2)"></span></div></div>')+
     hdr("봉투")+'<div id="envs"></div>'+
     '<div class="linkrow"><button class="btn tint" id="eadd">봉투 추가</button></div>'+
-    hdr("저축 목표")+
-    card('<div class="row"><span class="t">이름</span><input id="gn" type="text" placeholder="예: 비상금" value="'+esc(P.goal.name)+'"></div>'+
-      '<div class="row"><span class="t">목표 금액</span><input id="gt" type="text" inputmode="numeric" placeholder="0" value="'+moneyStr(P.goal.target)+'"></div>'+
-      '<div class="row"><span class="t">시작 적립금</span><input id="gb" type="text" inputmode="numeric" placeholder="0" value="'+moneyStr(P.goal.base)+'"></div>'+
-      '<div style="padding:12px 16px 16px"><div class="track" style="height:8px"><i id="gf"></i></div><div id="gl" style="font-size:15px"></div></div>')+
-    '<p class="note">기록한 저축이 자동으로 쌓입니다.</p>';
+    hdr("예산으로 보내기")+
+    card('<div class="row"><span class="t">예산으로 쓸 봉투</span><select id="pbSel"></select></div>'+
+      '<button class="row tap" id="pbApply" style="width:100%;text-align:left"><span class="t blue">이 봉투 금액을 총 예산으로 넣기</span><span class="val tnum" id="pbAmt"></span></button>')+
+    '<p class="note">고른 봉투의 금액이 예산 탭의 이번 달 총 예산이 됩니다.</p>';
 
-  const colorOf=(e,i)=>e.color||PAL[i%PAL.length];
   function paint(){
     const sb=$("sb");sb.innerHTML="";
     const tot=sumPct(),scale=tot>100?100/tot:1;
     P.envelopes.forEach((e,i)=>{
       const el=document.createElement("i");
-      el.style.cssText="display:block;width:"+(e.pct*scale)+"%;background:var("+colorOf(e,i)+")";
+      el.style.cssText="display:block;width:"+(envPct(e)*scale)+"%;background:var("+colorOf(e,i)+")";
       sb.appendChild(el);
     });
     const rest=100-tot;
     if(rest>0.05){const el=document.createElement("i");
       el.style.cssText="display:block;width:"+rest+"%;background:repeating-linear-gradient(45deg,transparent 0 5px,var(--fill2) 5px 10px)";sb.appendChild(el);}
     const lbl=$("restLbl"),val=$("restVal");
-    if(rest>0.05){
-      lbl.textContent="아직 안 나눈 돈";lbl.style.color="var(--label)";
-      val.textContent=fmt(base()*rest/100)+"원";val.style.color="var(--label2)";
-    }else if(rest<-0.05){
-      lbl.textContent="100%를 넘었습니다";lbl.style.color="var(--red)";
-      val.textContent=fmt(base()*(-rest)/100)+"원 초과";val.style.color="var(--red)";
-    }else{
-      lbl.textContent="모두 나눴습니다";lbl.style.color="var(--label)";
-      val.textContent="0원";val.style.color="var(--label2)";
-    }
-    goalLine();
+    if(!planBase()){lbl.textContent="실수령액을 넣으면 금액이 계산됩니다";lbl.style.color="var(--label2)";val.textContent="";}
+    else if(rest>0.05){lbl.textContent="아직 안 나눈 돈";lbl.style.color="var(--label)";val.textContent=fmt(planBase()*rest/100)+"원 · "+(Math.round(rest*10)/10)+"%";}
+    else{lbl.textContent="모두 나눴습니다";lbl.style.color="var(--label)";val.textContent="0원";}
+    const be=budgetEnv();$("pbAmt").textContent=be?fmt(envAmt(be))+"원":"";
+  }
+  function fillSel(){
+    const sel=$("pbSel"),be=budgetEnv();
+    sel.innerHTML=P.envelopes.map(e=>'<option value="'+e.id+'"'+(be&&e.id===be.id?" selected":"")+'>'+esc(e.name||"이름 없음")+'</option>').join("");
   }
   const envs=$("envs");
+  if(!P.envelopes.length)envs.innerHTML=card('<p class="empty">봉투를 추가해 실수령액을 나눠 보세요.</p>');
   P.envelopes.forEach((e,i)=>{
+    if(!e.mode)e.mode="pct";
     const c=document.createElement("div");c.className="card";
     c.innerHTML='<div class="row"><button class="swbtn" aria-label="색 바꾸기"><span class="swatch" style="background:var('+colorOf(e,i)+')"></span></button>'+
-        '<input class="nm" type="text" value="'+esc(e.name)+'" style="flex:1;text-align:left;border:none;background:transparent">'+
-        '<input class="am" type="text" inputmode="numeric" style="width:120px"></div>'+
+        '<input class="nm" type="text" value="'+esc(e.name)+'" placeholder="봉투 이름" style="flex:1;text-align:left;border:none;background:transparent">'+
+        '<span class="val tnum out"></span></div>'+
       '<div class="colorrow" hidden>'+PAL.map(p=>'<button data-c="'+p+'" class="'+(p===colorOf(e,i)?"on":"")+
         '" style="background:var('+p+')" aria-label="색"></button>').join("")+'</div>'+
-      '<div class="row"><input type="range" min="0" max="100" step="1"><span class="pct val tnum" style="width:46px"></span></div>'+
+      '<div class="row"><div class="seg mini"><button data-m="pct">%</button><button data-m="amt">원</button></div>'+
+        '<input class="vin" type="text" inputmode="numeric" placeholder="0" aria-label="배분"></div>'+
       '<div class="row"><span class="t">저축으로 계산</span><label class="sw"><input type="checkbox"'+(e.saving?" checked":"")+'><span></span></label></div>'+
       '<button class="row tap delrow" style="width:100%;text-align:left"><span class="t red">봉투 삭제</span></button>';
-    const nm=c.querySelector(".nm"),am=c.querySelector(".am"),rg=c.querySelector("input[type=range]"),
-      pc=c.querySelector(".pct"),ck=c.querySelector("input[type=checkbox]"),del=c.querySelector(".delrow"),
+    const nm=c.querySelector(".nm"),out=c.querySelector(".out"),vin=c.querySelector(".vin"),seg=c.querySelector(".seg"),
+      ck=c.querySelector("input[type=checkbox]"),del=c.querySelector(".delrow"),
       swbtn=c.querySelector(".swbtn"),swdot=c.querySelector(".swatch"),crow=c.querySelector(".colorrow");
     swbtn.addEventListener("click",()=>{crow.hidden=!crow.hidden;});
     crow.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
@@ -1298,42 +1307,53 @@ function renderPlan(){
       crow.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
       crow.hidden=true;paint();saveCfg();
     }));
-    const sync=skip=>{rg.value=e.pct;pc.textContent=(Math.round(e.pct*10)/10)+"%";if(!skip)am.value=moneyStr(amt(e));paint();};
-    nm.addEventListener("input",()=>{e.name=nm.value;saveCfg();});
-    rg.addEventListener("input",()=>{const o=sumPct()-e.pct;e.pct=Math.min(+rg.value,100-o);sync();saveCfg();});
-    bindMoney(am,v=>{if(!base())return;const o=sumPct()-e.pct;
-      e.pct=Math.max(0,Math.min(Math.round(v/base()*1000)/10,100-o));sync(true);saveCfg();});
-    am.addEventListener("blur",()=>{am.value=moneyStr(amt(e));});
-    ck.addEventListener("change",()=>{e.saving=ck.checked;saveCfg();goalLine();});
+    /* 기입 칸: % 모드면 숫자+%, 원 모드면 금액. 반대쪽 값은 오른쪽 위에 보여 준다. */
+    const showOut=()=>{out.textContent=e.mode==="amt"?(planBase()?(Math.round(envPct(e)*10)/10)+"%":"실수령액 필요"):(planBase()?fmt(envAmt(e))+"원":"");};
+    const fillIn=()=>{
+      seg.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.m===e.mode));
+      vin.value=e.mode==="amt"?moneyStr(e.amt):(e.pct?(Math.round(e.pct*10)/10)+"%":"");
+      showOut();
+    };
+    const others=()=>sumPct()-envPct(e);
+    seg.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+      if(e.mode===b.dataset.m)return;
+      /* 모드를 바꾸면 지금 값을 반대쪽 단위로 옮겨 둔다 */
+      if(b.dataset.m==="amt")e.amt=Math.round(envAmt(e));else e.pct=Math.round(envPct(e)*10)/10;
+      e.mode=b.dataset.m;fillIn();saveCfg();
+    }));
+    vin.addEventListener("input",()=>{
+      const room=Math.max(0,100-others());
+      if(e.mode==="amt"){
+        let v=parseN(vin.value);
+        if(planBase()){const cap=Math.floor(planBase()*room/100);if(v>cap){v=cap;toast("남은 몫까지만 나눌 수 있습니다");}}
+        e.amt=v;vin.value=moneyStr(v);
+      }else{
+        let v=Math.min(100,parseN(vin.value));
+        if(v>room){v=Math.floor(room*10)/10;toast("남은 몫까지만 나눌 수 있습니다");}
+        e.pct=v;vin.value=v?v+"%":"";
+      }
+      try{const q=Math.max(0,vin.value.length-1);vin.setSelectionRange(q,q);}catch(err){}
+      showOut();paint();saveCfg();
+    });
+    nm.addEventListener("input",()=>{e.name=nm.value;saveCfg();fillSel();});
+    ck.addEventListener("change",()=>{e.saving=ck.checked;saveCfg();});
     del.addEventListener("click",()=>{P.envelopes.splice(i,1);saveCfg();renderPlan();});
-    envs.appendChild(c);sync();
+    envs.appendChild(c);fillIn();
   });
-  $("eadd").addEventListener("click",()=>{P.envelopes.push({id:uid(),name:"새 봉투",pct:0,saving:false});saveCfg();renderPlan();});
+  $("eadd").addEventListener("click",()=>{P.envelopes.push({id:uid(),name:"새 봉투",pct:0,mode:"pct",saving:false});saveCfg();renderPlan();});
   bindMoney($("pi"),v=>{
-    P.income=v;
-    envs.querySelectorAll(".card").forEach((row,i)=>{row.querySelector(".am").value=moneyStr(amt(P.envelopes[i]));});
-    paint();saveCfg();
+    P.income=v;saveCfg();
+    envs.querySelectorAll(".card").forEach((row,i)=>{const e=P.envelopes[i];if(!e)return;const o=row.querySelector(".out");
+      o.textContent=e.mode==="amt"?(planBase()?(Math.round(envPct(e)*10)/10)+"%":"실수령액 필요"):(planBase()?fmt(envAmt(e))+"원":"");});
+    paint();
   });
-  $("gn").addEventListener("input",e=>{P.goal.name=e.target.value;saveCfg();});
-  bindMoney($("gt"),x=>{P.goal.target=x;goalLine();saveCfg();});
-  bindMoney($("gb"),x=>{P.goal.base=x;goalLine();saveCfg();});
-
-  function goalLine(){
-    const g=P.goal,saved=totalSaved(),fill=$("gf"),line=$("gl");
-    if(!fill||!line)return;
-    const monthly=P.envelopes.filter(e=>e.saving).reduce((a,e)=>a+amt(e),0);
-    fill.style.width=(g.target?Math.min(100,saved/g.target*100):0)+"%";
-    if(!g.target){line.innerHTML='<span style="color:var(--label2)">목표 금액을 넣으면 달성 시점을 계산합니다.</span>';return;}
-    const left=Math.max(0,g.target-saved);
-    if(!left){line.innerHTML='<b>목표를 채웠습니다.</b> 모은 돈 '+fmt(saved)+'원';return;}
-    let s='<b class="tnum">'+fmt(saved)+'원 모음 · '+fmt(left)+'원 남음</b><br>';
-    if(monthly>0){
-      const m=Math.ceil(left/monthly),d=new Date();d.setDate(1);d.setMonth(d.getMonth()+m);
-      s+='<span style="color:var(--label2)">매달 '+fmt(monthly)+'원이면 약 '+m+'개월 뒤, '+d.getFullYear()+'년 '+(d.getMonth()+1)+'월쯤 채워집니다.</span>';
-    }else s+='<span style="color:var(--label2)">저축 봉투를 켜면 달성 시점이 나옵니다.</span>';
-    line.innerHTML=s;
-  }
-  paint();
+  $("pbSel").addEventListener("change",()=>{P.budgetEnv=$("pbSel").value;saveCfg();paint();});
+  $("pbApply").addEventListener("click",()=>{
+    const be=budgetEnv(),m=be?Math.round(envAmt(be)):0;
+    if(!m){toast("실수령액과 봉투 금액을 먼저 넣어 주세요");return;}
+    cfg.budget.total=m;saveCfg();toast("총 예산을 "+fmt(m)+"원으로 넣었습니다");
+  });
+  fillSel();paint();
 }
 
 /* ── 시트 ── */
@@ -2448,6 +2468,7 @@ async function loadMonth(){
       cfg.plan.income=c.plan.income||0;
       if(Array.isArray(c.plan.envelopes)&&c.plan.envelopes.length)cfg.plan.envelopes=c.plan.envelopes;
       cfg.plan.goal=Object.assign({name:"",target:0,base:0},c.plan.goal||{});
+      if(c.plan.budgetEnv)cfg.plan.budgetEnv=c.plan.budgetEnv;
     }
   }
   const idx=await load("index/summary");

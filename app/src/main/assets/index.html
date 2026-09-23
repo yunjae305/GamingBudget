@@ -123,7 +123,7 @@ main{padding-top:2px;padding-bottom:calc(72px + var(--sab))}
 .track i.warn{background:var(--orange)} .track i.over{background:var(--red)}
 
 /* 입력 필드 (행 안) */
-.row input[type=text],.row input[type=date],.row select{
+.row input[type=text],.row input[type=date],.row input[type=time],.row select{
   flex:1;min-width:0;border:none;background:transparent;text-align:right;padding:0;
   font-variant-numeric:tabular-nums;
 }
@@ -527,6 +527,9 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
   <p class="hdr">결제 알림 감지</p>
   <div class="card" id="setNotif"></div>
   <p class="note" id="setNotifNote"></p>
+  <p class="hdr">하루 예산 알림</p>
+  <div class="card" id="setRemind"></div>
+  <p class="note" id="setRemindNote"></p>
   <p class="hdr">AI 조언 (통계 탭)</p>
   <div class="card">
     <div class="row"><span class="t">캐릭터 이름</span><input id="aiNameInput" type="text" placeholder="루나" style="text-align:right;width:100%"></div>
@@ -1385,6 +1388,7 @@ function renderSettings(){
   let userKey="";try{userKey=localStorage.getItem("gb:ai/key")||"";}catch(e){}
   $("aiKeyInput").value=userKey;
   $("aiKeyInput").placeholder=(!userKey&&builtinAiKey())?"앱에 내장된 키 사용 중":"AIza…";
+  renderReminders();
   if(!hasBridge()){
     host.innerHTML='<div class="row"><span class="t">알림 감지</span><span class="val">앱에서만 가능</span></div>';
     note.textContent="설치한 안드로이드 앱에서 카드사·은행·페이 앱 알림을 읽어 결제를 자동으로 모읍니다.";
@@ -1415,6 +1419,35 @@ function renderSettings(){
   bindDiagRow();
 }
 function bindDiagRow(){const r=$("setDiagRow");if(r)r.addEventListener("click",openDiag);}
+/* 하루 예산 알림 설정 — 네이티브 알람이라 앱에서만. 아침엔 오늘 쓸 수 있는 돈, 저녁엔 오늘 남은 돈. */
+function renderReminders(){
+  const host=$("setRemind"),note=$("setRemindNote");
+  if(!hasBridge()||!window.Android.reminders){
+    host.innerHTML='<div class="row"><span class="t">하루 예산 알림</span><span class="val">'+(hasBridge()?"새 APK 설치 필요":"앱에서만 가능")+'</span></div>';
+    note.textContent="아침엔 오늘 쓸 수 있는 돈, 저녁엔 오늘 남은 돈을 알림으로 보냅니다.";
+    return;
+  }
+  let st={};try{st=JSON.parse(window.Android.reminders()||"{}");}catch(e){}
+  const on=!!st.on;
+  host.innerHTML='<div class="row"><span class="t">알림 받기</span><label class="sw"><input type="checkbox" id="rmOn"'+(on?" checked":"")+'><span></span></label></div>'+
+    '<div class="row"><span class="t">아침 · 오늘 쓸 수 있는 돈</span><input type="time" id="rmM" value="'+esc(st.morning||"08:00")+'"'+(on?"":" disabled")+'></div>'+
+    '<div class="row"><span class="t">저녁 · 오늘 남은 돈</span><input type="time" id="rmE" value="'+esc(st.evening||"21:00")+'"'+(on?"":" disabled")+'></div>'+
+    (on&&window.Android.testReminder?'<button class="row tap" id="rmTest" style="width:100%;text-align:left"><span class="t blue">지금 보내 보기</span></button>':'');
+  note.textContent=!on?"켜면 아침·저녁에 예산 알림이 옵니다. 총 예산이 없으면 알림이 오지 않습니다.":
+    (st.granted===false?"알림 권한이 꺼져 있어 알림이 오지 않습니다. 폰 설정 › 앱 › 가계부 › 알림에서 켜 주세요.":"총 예산이 없는 달에는 알림이 오지 않습니다.");
+  const apply=()=>{try{window.Android.setReminders($("rmOn").checked,$("rmM").value||"08:00",$("rmE").value||"21:00");}catch(e){}};
+  $("rmOn").addEventListener("change",()=>{
+    apply();
+    if($("rmOn").checked&&st.needsPermission&&st.granted===false){try{window.Android.askNotifPermission();}catch(e){}}
+    renderReminders();
+  });
+  $("rmM").addEventListener("change",apply);$("rmE").addEventListener("change",apply);
+  const tb=$("rmTest");if(tb)tb.addEventListener("click",()=>{
+    let ok=false;try{ok=window.Android.testReminder(new Date().getHours()>=15);}catch(e){}
+    toast(ok?"알림을 보냈습니다":"총 예산을 정하면 알림이 옵니다");
+  });
+}
+window.__notifPerm=function(granted){if($("themeSheet").classList.contains("open"))renderReminders();if(!granted)toast("알림 권한이 없어 예산 알림이 오지 않습니다");};
 /* 알림 접근을 켜기 전에 무엇을 읽는지 먼저 알린다 (스토어 정책상 필수이기도 하다) */
 function askNotifAccess(){$("notifAlert").classList.add("open");}
 $("naCancel").addEventListener("click",()=>$("notifAlert").classList.remove("open"));

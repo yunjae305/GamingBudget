@@ -2,8 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- 개인 빌드의 원격 화면 업데이트와 웹폰트에만 쓴다. 기록은 어디로도 보내지 않는다. -->
+    <!-- 개인 빌드의 원격 화면 업데이트, 웹폰트, 사용자가 켠 AI 기능(Gemini)에만 쓴다. 기록은 어디로도 보내지 않는다. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 하루 예산 알림(아침·저녁). 설정에서 켠 경우에만 쓴다. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -35,5 +38,12 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+        <!-- 하루 예산 알림 -->
+        <receiver android:name=".ReminderReceiver" android:exported="false" />
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

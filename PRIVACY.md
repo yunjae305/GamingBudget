@@ -1,6 +1,6 @@
 # 가계부 개인정보처리방침
 
-최종 수정: 2026-09-21
+최종 수정: 2026-09-23
 
 ## 요약
 
@@ -37,6 +37,19 @@
 - 이 기능을 쓰지 않으면(키를 넣지 않으면) 어떤 데이터도 Google 로 가지 않습니다.
 - Gemini API 로 보낸 데이터가 Google 쪽에서 어떻게 쓰이는지는 Google 의 자체 정책을 따르며, 이 앱의 개발자가 관여하지 않습니다.
 
+## 영수증 스캔 (선택 기능)
+
+결제 대기열 화면의 **영수증 스캔**을 누르고 사진을 고르면, 그 사진이 사용자의 Gemini API 키로 Google 의 Gemini API 에 직접 전송되어 금액·가게 이름·날짜를 읽어 옵니다.
+
+- 사용자가 버튼을 누르고 사진을 고른 경우에만 전송됩니다. 자동으로 사진을 읽거나 보내지 않습니다.
+- 전송되는 것은 고른 사진과 "결제 정보를 JSON 으로 읽어 달라"는 요청 문구뿐입니다. 가계부의 다른 기록은 함께 보내지 않습니다.
+- 읽어 온 금액·가게·날짜는 결제 대기열에 들어가며, 사진 자체는 앱이 저장하지 않습니다.
+- 이 기능도 키를 넣지 않으면 동작하지 않으며, 전송된 사진의 처리 방식은 Google 의 정책을 따릅니다.
+
+## 하루 예산 알림 (선택 기능)
+
+설정에서 켜면 아침에 "오늘 쓸 수 있는 돈", 저녁에 "오늘 남은 돈"을 기기 알림으로 보여 줍니다. 이 계산은 기기 안의 기록만으로 이루어지며, 어떤 데이터도 밖으로 나가지 않습니다. 안드로이드 13 이상에서는 알림 권한을 요청하고, 재부팅 후 알림을 다시 예약하기 위해 부팅 완료 신호를 받습니다.
+
 ## 인터넷 사용
 
 `INTERNET` 권한은 다음 두 가지에만 씁니다.
@@ -65,6 +78,10 @@
 This app has **no server**. Everything you enter, every payment notification it reads, and all settings stay on your device. Nothing is sent to the developer or any third party. There are no accounts, no ads, and no analytics.
 
 **Optional AI spending advice** (Stats tab): off by default. If you enter your own Gemini API key in Settings, the app sends only aggregate numbers (totals, per-category sums, budget usage) directly from your device to Google's Gemini API using your key — never merchant names or individual transaction memos. The key stays on-device and is excluded from backups.
+
+**Optional receipt scan**: only when you tap "영수증 스캔" and pick photos, those photos are sent with your own Gemini key directly to Google's Gemini API to read the amount, merchant and date. The app does not store the photos.
+
+**Optional daily-budget reminders** are computed on-device and post local notifications only; nothing leaves the device.
 
 **Notification access** is used only to collect payment notifications (those containing an amount and a payment keyword). Other notifications are discarded immediately and never stored. Collected text stays on the device, is removed once you review it, and is never transmitted.
 

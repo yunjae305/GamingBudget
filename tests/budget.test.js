@@ -103,4 +103,33 @@ module.exports = async function () {
   assert(num(amt) === 15400 || num(amt) === -15400, "금액 15,400 — 실제: " + amt);
 
   assert(errors.length === 0, "스크립트 오류: " + errors.join(" / "));
+
+  /* 하루 예산 알림 설정: 브리지 상태를 읽어 스위치·시각을 보여 주고, 바꾸면 setReminders 로 넘긴다 */
+  let remState = { on: false, morning: "08:00", evening: "21:00", granted: false, needsPermission: true };
+  let setCalls = [], asked = 0;
+  const b = boot({ android: {
+    setBars: () => {},
+    reminders: () => JSON.stringify(remState),
+    setReminders: (on, m, e) => { setCalls.push([on, m, e]); remState = Object.assign({}, remState, { on, morning: m, evening: e }); },
+    askNotifPermission: () => { asked++; },
+    testReminder: () => true,
+  } });
+  await wait(300);
+  b.$("themeBtn").click(); await wait(30);
+  assert(b.$("rmOn") && !b.$("rmOn").checked, "알림 스위치가 꺼진 상태로 보여야 함");
+  assert(b.$("rmM").disabled, "꺼져 있으면 시각 입력이 비활성");
+  b.$("rmOn").checked = true; b.$("rmOn").dispatchEvent(new b.w.Event("change")); await wait(20);
+  assert(setCalls.length === 1 && setCalls[0][0] === true && setCalls[0][1] === "08:00", "켜면 setReminders(true, 08:00, 21:00) — 실제: " + JSON.stringify(setCalls));
+  assert(asked === 1, "안드로이드 13+ 에서 권한이 없으면 권한을 물어야 함");
+  assert(b.$("rmTest"), "켜진 뒤엔 '지금 보내 보기' 가 보여야 함");
+  b.$("rmE").value = "20:30"; b.$("rmE").dispatchEvent(new b.w.Event("change")); await wait(20);
+  assert(setCalls[setCalls.length - 1][2] === "20:30", "저녁 시각을 바꾸면 다시 넘겨야 함");
+  b.w.__notifPerm(true); await wait(20);
+  assert(b.errors.length === 0, "스크립트 오류: " + b.errors.join(" / "));
+
+  /* 옛 APK(브리지에 reminders 없음)에서는 안내만 */
+  const c = boot({ android: { setBars: () => {} } });
+  await wait(300);
+  c.$("themeBtn").click(); await wait(30);
+  assert(/새 APK 설치 필요/.test(c.$("setRemind").textContent), "브리지가 없으면 새 APK 안내");
 };

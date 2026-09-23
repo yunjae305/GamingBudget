@@ -14,10 +14,12 @@ ledger/
 ├─ app/src/main/java/net/nn33/ledger/
 │   ├─ MainActivity.java   WebView 호스트, 자동 업데이트, 파일 선택, JS 브리지, 뒤로가기
 │   ├─ PayListener.java    NotificationListenerService — 결제 알림 원문 수집
-│   └─ PendingStore.java   수집한 알림을 SharedPreferences에 보관
+│   ├─ PendingStore.java   수집한 알림을 SharedPreferences에 보관
+│   ├─ Reminders.java      하루 예산 알림 — mirror.json 에서 예산·지출을 읽어 아침·저녁 알림, AlarmManager
+│   └─ ReminderReceiver / BootReceiver   알람 수신, 재부팅 후 재등록
 ├─ app/src/main/res/values/strings.xml   update_url (개인 빌드 자동 업데이트 주소)
 ├─ app/src/main/res/xml/    backup_rules / data_extraction_rules — 자동 백업에 files/ 포함, live/ 제외
-├─ tests/                  jsdom 테스트 (npm test): 대기열, 파서 문구 모음, 게임 기록, 백업, 알림 감지 진단
+├─ tests/                  jsdom 테스트 (npm test): 대기열, 파서 문구 모음, 게임 기록, 백업, 알림 감지 진단, 하루 예산·검색·통계·영수증·알림 설정
 ├─ tools/                  개발용 — artifact-preview.html(미리보기 무대), setup-android.sh(클라우드 빌드 환경), character-full.png(원본 일러스트)
 ├─ PRIVACY.md              개인정보처리방침 (스토어 제출용, 알림 접근 권한 설명)
 ├─ keystore.properties.example   릴리스 서명 설정 본보기 (실제 파일·jks 는 gitignore)
@@ -53,8 +55,11 @@ ledger/
 - `builtinAiKey()` → 빌드 때 `.env` 에서 박은 AI 키(없으면 ""). 화면의 `aiKey()` 는 설정 키 → 내장 키 순
 - `saveFile(name, content)` → 시스템 저장 창(SAF)으로 파일 내보내기. 결과는 `window.__savedFile(ok)` 로 돌아옴
 - `rescanNotifs()` → 지금 상태 바에 떠 있는 알림을 다시 훑는다(§3 재스캔). `notifLog()` / `notifStats()` / `clearNotifLog()` / `noteDropped(pkg,text,time,why)` → 알림 감지 진단용 (§4 진단 화면)
+- `reminders()` → 하루 예산 알림 상태 `{on,morning,evening,granted,needsPermission}`. `setReminders(on,"HH:MM","HH:MM")` → 저장하고 알람 재등록. `askNotifPermission()` → 안드로이드 13+ 알림 권한 요청(결과 `__notifPerm(granted)`). `testReminder(evening)` → 지금 알림 하나 띄워 보기
 
-네이티브 → 화면: `__pullPending()`(onResume), `__back()`(뒤로가기), `__savedFile(ok)`, 그리고 창 인셋을 `--sat`/`--sab` CSS 변수로 밀어 넣는다.
+네이티브 → 화면: `__pullPending()`(onResume), `__back()`(뒤로가기), `__savedFile(ok)`, `__notifPerm(granted)`, 그리고 창 인셋을 `--sat`/`--sab` CSS 변수로 밀어 넣는다.
+
+**하루 예산 알림** — `Reminders` 가 `AlarmManager.setAndAllowWhileIdle` 로 아침·저녁 다음 회차를 걸고, 울리면 알림을 띄운 뒤 다음 날 것을 다시 건다(정확한 알람 권한 불필요, 절전 중엔 몇 분 늦을 수 있음). 숫자는 화면이 못 보는 시간에도 계산해야 해서 `files/mirror.json` 에서 읽는다 — 화면의 `dailyBudget()` 과 같은 규칙. 총 예산이 없으면 그날은 알림을 띄우지 않는다. 앱 시작(`onCreate`)과 재부팅(`BootReceiver`) 때 `schedule()` 로 재정비. 설정은 SharedPreferences `reminders`(localStorage·백업 밖).
 
 **엣지투엣지**: targetSdk 35+ 는 시스템 바 뒤까지 그리는 게 강제라 `EdgeToEdge.enable` 을 쓰고, 인셋을 재서 페이지의 `--sat`/`--sab` 에 넣는다(index.html 은 `env(safe-area-inset-*)` 대신 이 변수를 쓴다). 키보드가 올라오면 루트 뷰에 그만큼 패딩을 줘서 입력칸이 가려지지 않게 한다.
 
@@ -95,7 +100,21 @@ ledger/
 | `gb:ai/model` `gb:ai/name` `gb:ai/persona` | AI 모델명·캐릭터 이름·말투 설정. 백업에 포함 |
 | `gb:ai/note/YYYY-MM` | 그 달 생성한 `{comment,advice,at}`. 한 달에 한 번 캐시, 백업에 포함 |
 
-`cfg` = `{budget:{total,cat:{}}, plan:{income,envelopes[],goal}, assets[], gameNames[], gameGuard:{month,daily,perGame{}}, gameGrps:{게임:[카테고리]}, gameProducts:{게임:[{id,name,desc,price,grp}]}}`
+`cfg` = `{budget:{total,cat:{},calc:{income,fixed,saving}}, plan:{income,envelopes[],goal}, assets[], gameNames[], gameGuard:{month,daily,perGame{}}, gameGrps:{게임:[카테고리]}, gameProducts:{게임:[{id,name,desc,price,grp}]}}`
+
+### 하루 예산 ("오늘쓸돈" 참고, 2026-09-23)
+- `dailyBudget()` = (월 예산 − 오늘 전까지 지출) ÷ 오늘 포함 남은 날 → `{allow(하루 기준), spent(오늘 쓴 돈), rest(오늘 남은 돈), monthRest, left}`. 적게 쓴 날의 여유는 자동으로 다음 날로 넘어간다. 이달 화면이 아니거나 총 예산이 없으면 null.
+- 내역 탭 상단 카드 첫 줄(`#todayRow`)에 "오늘 쓸 수 있는 돈" 이 가장 먼저 보이고(누르면 예산 탭), 예산 탭 맨 위 `#todayCard`(`paintToday()`)에 큰 숫자로. 초과면 빨강, 남으면 초록.
+- 예산 계산 카드: 실수령액 − 고정비 − 저축 → "총 예산으로 넣기". 입력값은 `cfg.budget.calc`.
+
+### 내역 목록 검색·필터
+목록 보기(`listMode==="list"`)에만 `.searchbar`(검색 + 카테고리 select). 상태는 `txQ`/`txCat`, `txFiltered()`. 입력 중엔 `#txList` 만 갈아 끼워 커서를 유지한다. 걸러진 상태면 건수·합계 한 줄이 위에 뜬다.
+
+### 통계 탭 추가 항목
+카테고리 도넛·주별·6개월 외에 **일별 지출**(막대 `.bars.dense`, 가장 많이 쓴 날·하루 평균), **지출 히트맵**(`.heatgrid`, `color-mix` 로 진하기, 오늘은 파란 테두리), **요일별 평균 지출**(지난 날들의 요일별 평균, 가장 많이 쓰는 요일).
+
+### 영수증 스캔 (`#ibScan`, 결제 대기열 화면)
+사진을 골라(`#rcFile`, 여러 장) `scanReceipt()` 가 Gemini `generateContent` 에 `inlineData` 로 보내 `{amount,merchant,date}` JSON 을 받고 대기열에 `src:"receipt"` 로 넣는다. 캔버스로 1280px 로 줄여 JPEG 로 보내고, 캔버스를 못 쓰면 원본. 키는 통계 탭 AI 와 같은 `aiKey()`. 키가 없으면 설정 시트를 열고 닫으면 대기열로 돌아온다(`backToInbox`). **개별 거래 이미지가 Google 로 나가는 유일한 기능** — 설정 안내문과 PRIVACY.md 에 적혀 있다.
 
 ### 데이터 모양
 - 가계부 내역 `tx`: `{id,d:"YYYY-MM-DD",type:"income"|"expense"|"saving",amount,cat,memo}`
@@ -154,11 +173,13 @@ ledger/
 - 제품 정의에는 날짜·수량이 없다(정가·이름·상품 목록·카테고리만).
 - 달력은 **내역 탭·전체 화면 둘 다 보기 전용**이다. 날짜를 누르면 그날 기록이 아래에 펼쳐지고(다시 누르면 접힘), 기록을 누르면 수정은 된다. 날짜 눌러서 새로 추가하는 동작은 없다 — 추가는 `+` 버튼으로. 두 달력은 `calCard`/`dayCard` 를 같이 쓴다.
 - 게임 탭에서는 상단 수입/지출/차액 카드를 숨긴다.
-- 결제 대기열 화면에는 **목록과 일괄 저장 버튼만** 둔다. 각 건을 개별로 켜고 끄고, 날짜 머리글로 그날 전체를 한 번에 켜고 끈다. 문자 붙여넣기 입력은 없앴다 — 알림이 감지돼서 대기열에 들어오는 게 기본이고, 손으로 넣을 일은 `+` 버튼으로 한다.
+- 결제 대기열 화면에는 **목록과 아래 버튼 두 개(영수증 스캔·일괄 저장)만** 둔다. 각 건을 개별로 켜고 끄고, 날짜 머리글로 그날 전체를 한 번에 켜고 끈다. 문자 붙여넣기 입력은 없앴다 — 알림이 감지돼서 대기열에 들어오는 게 기본이고, 손으로 넣을 일은 `+` 버튼으로 한다. 영수증 스캔은 2026-09-23 사용자 요청으로 추가.
+- **"오늘쓸돈"(moteystudio.com) 참고 기능** (2026-09-23 사용자 선택): 하루 예산·상단 오늘 카드·예산 계산기, 내역 검색·필터, 통계(일별·히트맵·요일별), 영수증 스캔, 아침·저녁 예산 알림은 **넣었다.** Excel 내보내기와 달력 셀을 예산 초과 여부로 색칠하는 것은 **넣지 않는다**(사용자가 뺌). 달력 색은 그대로 수입 파랑·지출 빨강·저축 초록.
+- 하루 예산 규칙은 오늘쓸돈과 같다: (월 예산 − 오늘 전까지 지출) ÷ 남은 날. 덜 쓴 날의 여유가 다음 날로 넘어간다.
 - 대기열 위에 안내가 뜨는 건 **기본이 성립하지 않을 때뿐이다.** 알림 접근이 꺼졌거나(→ 켜기 링크), 앱 밖(브라우저)일 때. 정상 동작 중에는 아무것도 띄우지 않는다.
 - 게임 제품을 사진으로 읽어 오는 기능(Gemini)은 **제거했다.** AI는 통계 탭 캐릭터 카드로 옮겼다(위 "통계 탭 AI 카드" 참고).
 - **AI API 키는 코드나 저장소에 절대 넣지 않는다.** 두 경로만 허용: ① 앱 설정에서 직접 입력(`gb:ai/key`), ② 프로젝트 루트 `.env`(gitignore) 의 `GEMINI_API_KEY` 를 빌드 때 `BuildConfig.AI_KEY` 로 박아 넣기(사용자 결정, 2026-09-21). ①이 ②보다 우선. `.env` 키는 기본 **debug 빌드에만** 들어가고 release 는 `AI_KEY_IN_RELEASE=true` 를 적어야 들어간다(APK 에서 꺼낼 수 있으니). 백업·미러에는 어느 쪽도 담지 않는다. Claude 는 키 값을 파일에 적지 않는다 — 사용자가 직접 적는다.
-- AI 에 보내는 데이터는 카테고리별 지출 합계 숫자뿐이다. 가게 이름·메모 등 개별 거래 내용은 보내지 않는다.
+- 통계 탭 AI 에 보내는 데이터는 카테고리별 지출 합계 숫자뿐이다. 가게 이름·메모 등 개별 거래 내용은 보내지 않는다. **예외는 영수증 스캔 하나** — 사용자가 고른 영수증 사진을 같은 키로 Gemini 에 보낸다(2026-09-23 사용자 결정). 그 외 경로로 개별 거래를 내보내지 않는다.
 - AI 조언은 한 달에 한 번 생성해 캐시한다. 화면을 열 때마다 자동으로 다시 부르지 않는다 — 사용자가 "다시 생성"을 눌러야 한다.
 - 스토어 빌드에는 원격 업데이트를 넣지 않는다. 개인 빌드(debug)만 한다.
 - 백업은 자동 미러 + 수동 파일, 두 겹. 자동 복원은 **기록이 하나도 없을 때만**(기존 기록을 덮지 않는다).
@@ -179,7 +200,7 @@ npm install        # jsdom
 npm test           # tests/*.test.js 실행
 node --check <(sed -n '/<script>/,/<\/script>/p' app/src/main/assets/index.html | sed '1d;$d')   # 대략적 문법 확인
 ```
-테스트는 `window.Android`를 흉내 내서 알림 → 대기열 → 저장 흐름, 카드사·은행·페이별 알림 문구 파싱(`parser.test.js`, 새 형식은 여기에 추가), 게임 결제 기록(할인 포함) 흐름, 저장 → 미러 → 새 설치 자동 복원 → 파일 내보내기, 버린 알림이 진단 기록에 남는지(`diag.test.js`)를 클릭으로 따라간다. `index.html`을 고친 뒤 꼭 돌릴 것.
+테스트는 `window.Android`를 흉내 내서 알림 → 대기열 → 저장 흐름, 카드사·은행·페이별 알림 문구 파싱(`parser.test.js`, 새 형식은 여기에 추가), 게임 결제 기록(할인 포함) 흐름, 저장 → 미러 → 새 설치 자동 복원 → 파일 내보내기, 버린 알림이 진단 기록에 남는지(`diag.test.js`), 하루 예산 계산·예산 계산기·검색·통계 섹션·영수증 스캔(fetch 흉내)·알림 설정 브리지(`budget.test.js`)를 클릭으로 따라간다. `index.html`을 고친 뒤 꼭 돌릴 것.
 
 APK 빌드 확인(로컬, Git Bash):
 ```bash

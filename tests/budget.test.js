@@ -39,14 +39,40 @@ module.exports = async function () {
   assert(num($("sToday").textContent) === rest || (rest < 0 && num($("sToday").textContent) === -rest), "내역 탭 상단 카드에도 같은 금액 — 실제: " + $("sToday").textContent);
   d.querySelector('[data-tab="budget"]').click(); await wait(20);
 
-  /* 예산 계산기: 2,000,000 − 500,000 − 300,000 = 1,200,000 → 총 예산으로 넣기 */
-  type("bcIncome", "2000000"); type("bcFixed", "500000"); type("bcSaving", "300000"); await wait(20);
-  assert(num($("bcOut").textContent) === 1200000, "계산 결과 1,200,000 — 실제: " + $("bcOut").textContent);
-  assert(num($("bcDay").textContent) === Math.floor(1200000 / n), "하루 " + Math.floor(1200000 / n) + " — 실제: " + $("bcDay").textContent);
-  $("bcApply").click(); await wait(30);
-  assert(num($("bt").value) === 1200000, "총 예산 칸이 1,200,000 으로 바뀌어야 함 — 실제: " + $("bt").value);
-  const allow2 = Math.floor((1200000 - before) / left);
+  /* 배분 탭: 실수령액을 적고 봉투마다 % 또는 원으로 기입 → 막대·남은 돈, 봉투 금액을 총 예산으로 */
+  d.querySelector('[data-tab="plan"]').click(); await wait(30);
+  assert(!d.querySelector("#envs input[type=range]"), "슬라이더는 없어야 함");
+  type("pi", "2000000"); await wait(20);
+  const envCards = () => d.querySelectorAll("#envs .card");
+  assert(envCards().length === 4, "기본 봉투 4개 — 실제: " + envCards().length);
+  assert(envCards()[0].querySelector(".out").textContent === "800,000원", "고정지출 40% → 800,000원 — 실제: " + envCards()[0].querySelector(".out").textContent);
+  /* 고정지출을 30% 로 줄인 뒤, 생활비(25%)를 원 모드로 바꿔 600,000 기입 → 30% */
+  const fixed = envCards()[0];
+  fixed.querySelector(".vin").value = "30"; fixed.querySelector(".vin").dispatchEvent(new w.Event("input")); await wait(10);
+  assert(fixed.querySelector(".out").textContent === "600,000원", "30% → 600,000원 — 실제: " + fixed.querySelector(".out").textContent);
+  const life = envCards()[1];
+  life.querySelector('[data-m="amt"]').click(); await wait(10);
+  assert(num(life.querySelector(".vin").value) === 500000, "원 모드로 바꾸면 25% → 500,000원 — 실제: " + life.querySelector(".vin").value);
+  life.querySelector(".vin").value = "600000"; life.querySelector(".vin").dispatchEvent(new w.Event("input")); await wait(10);
+  assert(life.querySelector(".out").textContent === "30%", "600,000원 → 30% — 실제: " + life.querySelector(".out").textContent);
+  assert(/아직 안 나눈 돈/.test($("restLbl").textContent) && /5%/.test($("restVal").textContent), "30+30+25+10=95 → 남은 5% — 실제: " + $("restVal").textContent);
+  /* 100% 넘게 기입하면 남은 몫까지만 */
+  fixed.querySelector(".vin").value = "90"; fixed.querySelector(".vin").dispatchEvent(new w.Event("input")); await wait(10);
+  assert(fixed.querySelector(".vin").value === "35%", "남은 몫(35%)까지만 — 실제: " + fixed.querySelector(".vin").value);
+  assert(/모두 나눴습니다/.test($("restLbl").textContent), "합계 100% 면 모두 나눴습니다");
+  /* 생활비 봉투를 총 예산으로 */
+  assert($("pbSel").selectedOptions[0].textContent === "생활비", "기본 예산 봉투는 생활비");
+  $("pbApply").click(); await wait(20);
+  d.querySelector('[data-tab="budget"]').click(); await wait(20);
+  assert(num($("bt").value) === 600000, "총 예산이 600,000 이어야 함 — 실제: " + $("bt").value);
+  assert(!$("bcIncome"), "예산 탭의 예산 계산 카드는 없어야 함");
+  const allow2 = Math.floor((600000 - before) / left);
   assert($("todayCard").textContent.includes(new Intl.NumberFormat("ko-KR").format(allow2) + "원"), "오늘 카드가 새 예산으로 다시 계산 — 실제: " + $("todayCard").textContent);
+  /* 저축 목표는 자산 탭에 */
+  d.querySelector('[data-tab="asset"]').click(); await wait(20);
+  assert($("gt") && $("gl"), "자산 탭에 저축 목표가 있어야 함");
+  type("gt", "3000000"); await wait(10);
+  assert(/남음/.test($("gl").textContent), "목표를 넣으면 남은 금액이 보여야 함 — 실제: " + $("gl").textContent);
 
   /* 상단 카드 누르면 예산 탭 */
   d.querySelector('[data-tab="tx"]').click(); await wait(20);

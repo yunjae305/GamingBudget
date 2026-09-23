@@ -776,9 +776,10 @@ $("todayRow").addEventListener("click",()=>{tab="budget";window.scrollTo({top:0}
 function renderTop(){
   const[y,m]=ym.split("-");
   $("ym").textContent=y+"년 "+Number(m)+"월";
-  /* 게임 탭은 상단 카드가 없고, 예산 탭은 자기 오늘 카드가 있어서 상단 카드를 뺀다 (사용자 결정) */
-  $("summaryCard").style.display=(tab==="game"||tab==="budget")?"none":"";
-  if(tab!=="game"&&tab!=="budget"){
+  /* 상단 카드는 내역·통계·배분 탭에만. 게임은 원래 없고, 예산은 자기 오늘 카드, 자산은 원그래프가 있다 (사용자 결정) */
+  const noTop=tab==="game"||tab==="budget"||tab==="asset";
+  $("summaryCard").style.display=noTop?"none":"";
+  if(!noTop){
     const t=totals();
     $("sIn").textContent=fmt(t.i);$("sOut").textContent=fmt(t.e);$("sSav").textContent=fmt(t.s);
     const net=t.i-t.e-t.s,el=$("sNet");
@@ -1115,6 +1116,19 @@ function openAiSettings(){
   setTimeout(()=>{const el=$("aiKeyInput");if(el)el.focus();},380);
 }
 
+/* 원그래프 + 항목 줄. entries=[[이름,값],...] (값>0). 통계 탭 카테고리, 자산 탭 항목별 비율에 같이 쓴다. */
+function donutHtml(entries,centerLabel,centerText,aria){
+  const sum=entries.reduce((a,c)=>a+c[1],0),C=2*Math.PI*52;let off=0;
+  let svg='<svg viewBox="0 0 140 140" width="148" height="148" role="img" aria-label="'+esc(aria||"")+'"><g transform="rotate(-90 70 70)">';
+  entries.forEach((c,i)=>{const len=c[1]/sum*C;
+    svg+='<circle cx="70" cy="70" r="52" fill="none" stroke="var('+PAL[i%PAL.length]+')" stroke-width="24" stroke-dasharray="'+len+' '+(C-len)+'" stroke-dashoffset="'+(-off)+'"/>';off+=len;});
+  svg+='</g><text x="70" y="66" text-anchor="middle" font-size="13" fill="var(--label2)">'+esc(centerLabel)+'</text>'+
+    '<text x="70" y="84" text-anchor="middle" font-size="15" font-weight="600" fill="var(--label)">'+esc(centerText)+'</text></svg>';
+  const rows=entries.map((c,i)=>'<div class="row"><span class="swatch" style="background:var('+PAL[i%PAL.length]+')"></span>'+
+    '<span class="t">'+esc(c[0])+'</span><span class="val tnum">'+fmt(c[1])+'원 · '+(c[1]/sum*100).toFixed(1)+'%</span></div>').join("");
+  return '<div class="donut">'+svg+'</div>'+rows;
+}
+
 /* ── 통계 ── */
 function renderStat(){
   const v=view();v.innerHTML="";
@@ -1122,14 +1136,7 @@ function renderStat(){
   let h=aiCardHtml()+hdr("카테고리별 지출");
   if(!sum)h+=card('<p class="empty">이 달 지출 기록이 없습니다.</p>');
   else{
-    const C=2*Math.PI*52;let off=0,svg='<svg viewBox="0 0 140 140" width="148" height="148" role="img" aria-label="카테고리별 지출 비중"><g transform="rotate(-90 70 70)">';
-    ct.forEach((c,i)=>{const len=c[1]/sum*C;
-      svg+='<circle cx="70" cy="70" r="52" fill="none" stroke="var('+PAL[i%PAL.length]+')" stroke-width="24" stroke-dasharray="'+len+' '+(C-len)+'" stroke-dashoffset="'+(-off)+'"/>';off+=len;});
-    svg+='</g><text x="70" y="66" text-anchor="middle" font-size="13" fill="var(--label2)">총 지출</text>'+
-      '<text x="70" y="84" text-anchor="middle" font-size="15" font-weight="600" fill="var(--label)">'+fmt(sum)+'</text></svg>';
-    let rows=ct.map((c,i)=>'<div class="row"><span class="swatch" style="background:var('+PAL[i%PAL.length]+')"></span>'+
-      '<span class="t">'+esc(c[0])+'</span><span class="val tnum">'+fmt(c[1])+'원 · '+(c[1]/sum*100).toFixed(1)+'%</span></div>').join("");
-    h+=card('<div class="donut">'+svg+'</div>'+rows);
+    h+=card(donutHtml(ct,"총 지출",fmt(sum),"카테고리별 지출 비중"));
   }
   /* 주별 */
   const n=daysIn(),weeks=[];
@@ -1189,14 +1196,19 @@ function renderStat(){
 function renderAsset(){
   const v=view();const TYPES=["입출금","저축","투자","대출","부동산","기타"];
   const total=()=>cfg.assets.reduce((a,x)=>a+(x.type==="대출"?-x.amount:x.amount),0);
-  v.innerHTML=hdr("순자산")+card('<div class="row"><span class="t" style="font-weight:600">합계</span>'+
-    '<span class="val tnum" id="atot" style="color:var(--label);font-weight:600;font-size:19px"></span></div>')+
+  v.innerHTML=hdr("자산 구성")+'<div class="card" id="adonut"></div>'+
     hdr("항목")+'<div id="alist"></div>'+
     '<div class="linkrow"><button class="btn tint" id="aadd">항목 추가</button></div>'+
-    '<p class="note">대출은 합계에서 빼서 계산합니다.</p>';
-  const refresh=()=>{$("atot").textContent=fmt(total())+"원";};
+    '<p class="note">가운데 숫자는 순자산(대출을 뺀 합계)이고, 비율은 대출을 뺀 자산끼리 나눈 것입니다.</p>';
+  /* 원그래프: 항목별 비율 (사용자 요청, 2026-09-24). 금액을 고치는 중에도 바로 따라간다. */
+  const refresh=()=>{
+    const ent=cfg.assets.filter(a=>a.type!=="대출"&&a.amount>0).map((a,i)=>[a.name||(a.type+" "+(i+1)),a.amount]).sort((x,y)=>y[1]-x[1]);
+    const loans=cfg.assets.filter(a=>a.type==="대출"&&a.amount>0).reduce((x,a)=>x+a.amount,0);
+    $("adonut").innerHTML=ent.length?donutHtml(ent,"순자산",fmt(total()),"자산 항목별 비율")+
+      (loans?'<div class="row"><span class="t" style="color:var(--label2)">대출</span><span class="val tnum" style="color:var(--red)">−'+fmt(loans)+'원</span></div>':''):
+      '<p class="empty">통장·예금·투자·대출을 등록하면<br>항목별 비율과 순자산이 보입니다.</p>';
+  };
   const host=$("alist");
-  if(!cfg.assets.length)host.innerHTML=card('<p class="empty">통장·예금·투자·대출을 등록하면<br>순자산이 계산됩니다.</p>');
   cfg.assets.forEach((a,i)=>{
     const c=document.createElement("div");c.className="card";
     c.innerHTML='<div class="row"><span class="t">종류</span><select>'+TYPES.map(t=>'<option'+(t===a.type?" selected":"")+'>'+t+'</option>').join("")+'</select></div>'+
@@ -1205,7 +1217,7 @@ function renderAsset(){
       '<button class="row tap" style="width:100%;text-align:left"><span class="t red">삭제</span></button>';
     const sel=c.querySelector("select"),nm=c.querySelector(".nm"),am=c.querySelector(".am"),del=c.querySelector("button");
     sel.addEventListener("change",()=>{a.type=sel.value;saveCfg();refresh();});
-    nm.addEventListener("input",()=>{a.name=nm.value;saveCfg();});
+    nm.addEventListener("input",()=>{a.name=nm.value;saveCfg();refresh();});
     bindMoney(am,v=>{a.amount=v;saveCfg();refresh();});
     del.addEventListener("click",()=>{cfg.assets.splice(i,1);saveCfg();renderAsset();});
     host.appendChild(c);

@@ -173,6 +173,16 @@ module.exports = async function () {
   b.w.__notifPerm(true); await wait(20);
   assert(b.errors.length === 0, "스크립트 오류: " + b.errors.join(" / "));
 
+  /* 메뉴(바 3개) → 글씨 크기: 루트 zoom 으로 적용되고 저장된다 */
+  assert(b.$("themeBtn").getAttribute("aria-label") === "메뉴", "왼쪽 위 버튼은 메뉴");
+  b.$("themeBtn").click(); await wait(20);
+  b.$("fontSeg").querySelector('[data-v="1.2"]').click();
+  assert(b.d.documentElement.style.zoom === "1.2", "더 크게 → zoom 1.2 — 실제: " + b.d.documentElement.style.zoom);
+  assert(b.w.localStorage.getItem("gb:fontScale") === "1.2", "글씨 크기가 저장돼야 함");
+  b.$("fontSeg").querySelector('[data-v="1"]').click();
+  assert(b.d.documentElement.style.zoom === "" && !b.w.localStorage.getItem("gb:fontScale"), "기본으로 돌리면 저장값 삭제");
+  b.$("tDone").click();
+
   /* 옛 APK(브리지에 reminders 없음)에서는 안내만 */
   const c = boot({ android: { setBars: () => {} } });
   await wait(300);

@@ -26,7 +26,9 @@ ledger/
 
 빌드: AGP 8.9.1 / Gradle 8.11.1 / JDK 17 / compileSdk 36 / targetSdk 36 / minSdk 24. Gradle 래퍼 jar는 없다(CI는 `gradle/actions/setup-gradle`). 로컬(윈도우 PC): JDK 17 은 `C:\Users\winz\.dal-bbam-android\jdk17\jdk-17.0.20.1+1`, Gradle 8.11.1 은 `~/.gradle/wrapper/dists` 에 캐시돼 있고, Android SDK 는 `C:\Users\winz\AppData\Local\Android\Sdk`. 안드로이드 스튜디오 번들 JBR(25)로는 Gradle 이 안 돈다. **클라우드 세션(리눅스)** 에서는 `tools/setup-android.sh` 가 이 셋을 홈 밑에 깐다(§8).
 
-**빌드 타입이 두 가지다.** `debug` = 개인용(원격 업데이트 켬), `release` = 스토어용(원격 업데이트 끔, `BuildConfig.REMOTE_UPDATE`). 서명은 `keystore.properties` 또는 `LEDGER_*` 환경 변수에서 읽고, 없으면 release 는 서명 없이 빌드된다.
+**빌드 타입이 두 가지다.** `debug` = 개인용(원격 업데이트 켬), `release` = 스토어용(원격 업데이트 끔, `BuildConfig.REMOTE_UPDATE`). release 서명은 `keystore.properties` 또는 `LEDGER_*` 환경 변수에서 읽고, 없으면 서명 없이 빌드된다.
+
+**debug 서명 키도 고정한다** (2026-09-22). 기본 debug 키는 빌드하는 컴퓨터(PC·CI 실행·클라우드 세션)마다 새로 생겨서, 다른 곳에서 만든 APK 는 폰에 덮어쓰기 설치가 거부된다. `app/build.gradle` 이 `app/debug.keystore`(gitignore) → `LEDGER_DEBUG_KEYSTORE_B64` 환경 변수(base64) 순으로 키를 찾고, 둘 다 없으면 자동 키다. 기준 키는 사용자 PC 의 `~/.android/debug.keystore` 이고, 비밀번호·별칭은 기본값(`android`/`androiddebugkey`). CI 는 같은 이름의 시크릿을, 클라우드는 환경 변수를 쓴다(README §5). **키 파일을 저장소에 넣지 않는다** — 공개 저장소라 누구나 사용자 앱 위에 덮어씌워지는 APK 를 만들 수 있게 된다.
 
 ## 2. 배포·업데이트 방식 (중요)
 
@@ -62,7 +64,7 @@ ledger/
 
 `WebChromeClient.onShowFileChooser`(파일 선택)는 백업 파일 가져오기(`<input type="file">`)에 쓴다.
 
-`PayListener` 필터: 금액(`○○원`) + 결제 단어(승인/결제/사용/출금/입금/이체/체크카드/신용카드)가 같이 있어야 하고, 광고/수신거부/쿠폰/이벤트와 결제 예정·청구·명세서 안내는 버린다. 상주 알림(`isOngoing`, 잔액 표시 같은 것)과 그룹 요약도 뺀다. 화면 쪽 `parseOne` 도 같은 것을 한 번 더 거른다(`SKIPWORD`). SMS 권한은 쓰지 않는다 — 문자도 메시지 앱 알림으로 읽는다.
+`PayListener` 필터: 금액(`○○원`) + 결제 단어(승인/결제/사용/출금/입금/이체/체크카드/신용카드)가 같이 있어야 하고, 광고/수신거부/쿠폰/이벤트와 결제 예정·청구·명세서 안내는 버린다. 상주 알림(`isOngoing`, 잔액 표시 같은 것)과 그룹 요약도 뺀다. 화면 쪽 `parseOne` 이 더 엄격하게 한 번 더 거른다 — `SKIPWORD`(취소·실패·거절·거부·미승인·예정·청구·광고)가 있으면 통째로 버리고, 금액은 `payAmount()` 가 고른다: 앞뒤에 잔액·누적·캐시백·적립·포인트가 붙은 "○○원" 은 건너뛰고, 캐시백 얘기가 있는 줄에서는 바로 뒤에 "결제/승인" 이 붙은 금액만 인정한다. 결제 금액이 하나도 안 남으면 버린다(**수치를 정확히 못 읽는 알림은 대기열에 넣지 않는다** — 사용자 결정, 2026-09-23, §6). 버린 이유는 `dropReason()` 이 진단 화면에 남긴다. SMS 권한은 쓰지 않는다 — 문자도 메시지 앱 알림으로 읽는다.
 
 **알림에서 글자를 긁는 범위가 넓다** — `collectText()` 가 title/bigText/text/subText/infoText/summaryText/textLines 에 더해 MessagingStyle 의 `EXTRA_MESSAGES`·`EXTRA_HISTORIC_MESSAGES` 까지 모은다. bigText·text 만 보면 문자(SMS) 결제 알림을 통째로 놓친다 — 삼성·구글 메시지는 MessagingStyle 이라 본문이 `EXTRA_MESSAGES` 에 들어가고, 안 읽은 문자가 여러 건이면 `EXTRA_TEXT` 는 "새 메시지 2개" 같은 요약으로 바뀐다.
 
@@ -145,6 +147,7 @@ ledger/
 ## 6. 사용자가 확정한 결정 (바꾸기 전에 물어볼 것)
 
 - 결제 대기열: **중복 제거 안 함.** 전부 대기열에 올리고 사용자가 확인 후 일괄 저장.
+- 결제 대기열: **결제 실패·거절은 절대 넣지 않는다. 캐시백·적립처럼 결제 금액을 정확히 못 읽는 알림은 아예 뺀다** (2026-09-23, 실기기 토스 알림 확인 후). 애매하면 넣지 말고 버리는 쪽. 버린 건 진단 화면에서 볼 수 있다.
 - 봉투(배분 탭): 합계 100% 이내로 제한. 슬라이더는 0~100 전 구간이지만 남은 몫 이상은 안 올라감.
 - 최근 6개월 통계는 **지출만** 표시.
 - 주별 지출은 그 달 1~7, 8~14… 날짜 기준(요일 기준 아님).
@@ -185,13 +188,16 @@ JAVA_HOME="C:/Users/winz/.dal-bbam-android/jdk17/jdk-17.0.20.1+1" ANDROID_HOME="
 
 ### 클라우드 세션에서 APK 빌드
 
-클라우드 샌드박스에는 JDK·Gradle·Android SDK 가 없다. 한 번만:
+클라우드 샌드박스에는 JDK·Gradle·Android SDK 가 없다. 세션을 시작할 때:
 ```bash
 bash tools/setup-android.sh && source ~/.ledger-tools/env.sh
 ```
-JDK 17(Temurin)·Gradle 8.11.1·명령줄 도구·platform-tools·android-36·build-tools 35.0.0 을 `~/.ledger-tools` 에 받고 `local.properties`(gitignore) 를 쓴다. 이미 있으면 건너뛴다. 이후 빌드는 로컬과 같다: `gradle assembleDebug --no-daemon`. 새 셸마다 `source ~/.ledger-tools/env.sh` 를 다시 해야 한다.
+JDK 17(Temurin)·Gradle 8.11.1·명령줄 도구·platform-tools·android-36·build-tools 35.0.0 을 `~/.ledger-tools` 에 받고(약 900MB) `local.properties`(gitignore) 를 쓴다. 이미 있으면 건너뛴다. 이후 빌드는 로컬과 같다: `gradle assembleDebug assembleRelease --no-daemon -q` → `app/build/outputs/apk/{debug,release}/`. 새 셸마다 `source ~/.ledger-tools/env.sh` 를 다시 해야 한다. 2026-09-22 클라우드(리눅스 x64)에서 설치·테스트·debug/release 빌드 모두 확인함.
+- 컨테이너는 세션이 끝나면 사라진다. `~/.ledger-tools` 도 같이 사라지니 **새 클라우드 세션마다 다시 받는다**(몇 분 걸림).
 - 네트워크가 막혀 있으면 실패한다 — `api.adoptium.net`, `services.gradle.org`, `dl.google.com`, `maven.google.com`, `repo.maven.apache.org`, `plugins.gradle.org` 가 열려 있어야 한다.
+- 출력에 `Picked up JAVA_TOOL_OPTIONS: ...` 줄이 반복돼 찍히는 건 샌드박스 프록시 설정이지 오류가 아니다.
 - `.env` 는 저장소에 없으니 클라우드에서 만든 debug APK 엔 내장 AI 키가 안 들어간다(설정에서 직접 넣은 키는 그대로 됨).
+- 클라우드 환경 변수에 `LEDGER_DEBUG_KEYSTORE_B64` 가 없으면 debug APK 가 세션마다 다른 자동 키로 서명돼 **폰의 기존 앱 위에 설치되지 않는다**(§1). 빌드 전에 `echo ${LEDGER_DEBUG_KEYSTORE_B64:+있음}` 으로 확인하고, 없으면 사용자에게 알린다. 서명 확인: `$ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs <apk>`.
 - 클라우드 세션은 별도 브랜치 + PR 로 일한다. 폰 자동 업데이트는 `main` 을 읽으니 **merge 해야 화면이 반영**되고, 네이티브 변경은 어차피 APK 재설치다.
 
 ### 아티팩트 미리보기

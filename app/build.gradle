@@ -11,6 +11,22 @@ if (ksFile.exists()) ksFile.withInputStream { ks.load(it) }
 }
 def hasSigning = ks['storeFile'] != null
 
+/* 개인용(debug) 서명 키 고정. 안드로이드는 debug 를 빌드하는 컴퓨터의 ~/.android/debug.keystore 로
+   서명하는데, 그 파일은 컴퓨터(PC·CI 실행·클라우드 세션)마다 새로 생겨서 서로 다른 곳에서 만든 APK 는
+   폰에서 덮어쓰기 설치가 거부된다. 그래서 키 하나를 정해 두 경로로 받는다:
+     ① app/debug.keystore 파일 (*.keystore 는 gitignore)
+     ② LEDGER_DEBUG_KEYSTORE_B64 환경 변수 (base64 -w0 debug.keystore 결과) — CI 시크릿·클라우드 환경 변수용
+   둘 다 없으면 예전처럼 자동 키. 비밀번호·별칭은 안드로이드 기본 debug 키 그대로(android / androiddebugkey)라
+   PC 의 ~/.android/debug.keystore 를 그대로 복사해 쓰면 된다. */
+def debugKs = file("debug.keystore")
+def debugKsB64 = System.getenv("LEDGER_DEBUG_KEYSTORE_B64")?.replaceAll(/\s/, "")
+if (!debugKs.exists() && debugKsB64) {
+    debugKs = layout.buildDirectory.file("debug.keystore").get().asFile
+    debugKs.parentFile.mkdirs()
+    debugKs.bytes = debugKsB64.decodeBase64()
+}
+def hasDebugSigning = debugKs.exists()
+
 /* AI 키. 프로젝트 루트 .env(저장소에 넣지 않음) 또는 GEMINI_API_KEY 환경 변수에서 읽어
    BuildConfig.AI_KEY 로 앱에 박는다. APK 를 뜯으면 꺼낼 수 있는 값이라 기본은 debug(개인용)에만
    넣고, release 에는 .env 에 AI_KEY_IN_RELEASE=true 를 적어야 들어간다. 없으면 빈 문자열 —
@@ -36,6 +52,14 @@ android {
     }
 
     signingConfigs {
+        debug {
+            if (hasDebugSigning) {
+                storeFile debugKs
+                storePassword "android"
+                keyAlias "androiddebugkey"
+                keyPassword "android"
+            }
+        }
         release {
             if (hasSigning) {
                 storeFile rootProject.file(ks['storeFile'])

@@ -97,7 +97,7 @@ ledger/
 | `gb:theme` | 화면 모드 (localStorage 직접) |
 | `gb:fontScale` | 글씨 크기 0.9/1.1/1.2 (기본 1 이면 키 없음). 루트 `zoom` 으로 적용 |
 | `gb:meta/backup` | 마지막 백업 파일 내보내기 시각 (ISO) |
-| `gb:ai/key` | Gemini API 키. **백업·미러 제외**(`dumpAll` 에서 이 키만 빼고 담는다) |
+| `gb:ai/key` | (옛 키. 2026-09-24 부터 안 읽는다 — 키는 빌드에 내장. `dumpAll` 의 제외 규칙만 남겨 둠) |
 | `gb:ai/model` `gb:ai/name` `gb:ai/persona` | AI 모델명·캐릭터 이름·말투 설정. 백업에 포함 |
 | `gb:ai/note/YYYY-MM` | 그 달 생성한 `{comment,advice,at}`. 한 달에 한 번 캐시, 백업에 포함 |
 
@@ -131,7 +131,7 @@ ledger/
 
 ### 통계 탭 AI 카드
 - `renderStat()` 맨 위에 캐릭터 카드(`.aiCard`, `aiCardHtml()`)가 항상 뜬다. 초상화는 `/assets/img/character.png`(절대경로, WebViewAssetLoader 의 `/assets/` 핸들러) — 320×320 얼굴 크롭, 투명 배경. 원본 전신 일러스트(1086×1448)는 `tools/character-full.png` 에 두고 APK 에는 넣지 않는다. 파일이 없어도 `onerror` 로 그라데이션 원만 남고 안 깨진다. 미리보기(`tools/artifact-preview.html`)는 절대경로를 못 쓰니 `character.png` 상대경로로 바꿔치기해서 같이 publish 한다.
-- 키가 없으면 "설정에서 키 넣기"만 뜬다. 키를 넣으면(설정 시트, §6) `aiGenerate()` 가 Gemini `generateContent` 를 직접 fetch 로 부른다 — 서버를 안 거치고 폰에서 곧장 나간다.
+- 키는 빌드에 내장된 것(`Android.builtinAiKey()`)만 쓴다. 없는 빌드면 카드에 "이 앱 빌드에는 AI 키가 없습니다" 만 뜨고, 영수증 스캔도 같은 토스트만. `aiGenerate()` 가 Gemini `generateContent` 를 직접 fetch 로 부른다 — 서버를 안 거치고 폰에서 곧장 나간다.
 - 보내는 내용은 `aiPrompt(ym)`: 이번 달 총수입/지출/저축, 예산 대비 사용률, **카테고리별 합계 숫자**, 전달 대비 증감뿐이다. 가게 이름·메모 등 개별 거래 내용은 절대 보내지 않는다.
 - 응답은 `generationConfig.responseMimeType:"application/json"` 로 강제해 `{comment,advice}` 만 파싱한다. 한 달에 한 번 `gb:ai/note/YYYY-MM` 에 캐시하고, "다시 생성"을 눌러야 다시 부른다(비용·트래픽 아끼려고 자동 재호출 안 함).
 - 모델 기본값은 `gemini-flash-lite-latest`(무료 사용량이 있는 가장 가벼운 모델의 최신 별칭), 캐릭터 이름 기본값 "루나", 말투(persona)도 설정에서 바꿀 수 있다.
@@ -182,7 +182,7 @@ ledger/
 - 하루 예산 규칙은 오늘쓸돈과 같다: (월 예산 − 오늘 전까지 지출) ÷ 남은 날. 덜 쓴 날의 여유가 다음 날로 넘어간다.
 - 대기열 위에 안내가 뜨는 건 **기본이 성립하지 않을 때뿐이다.** 알림 접근이 꺼졌거나(→ 켜기 링크), 앱 밖(브라우저)일 때. 정상 동작 중에는 아무것도 띄우지 않는다.
 - 게임 제품을 사진으로 읽어 오는 기능(Gemini)은 **제거했다.** AI는 통계 탭 캐릭터 카드로 옮겼다(위 "통계 탭 AI 카드" 참고).
-- **AI API 키는 코드나 저장소에 절대 넣지 않는다.** 두 경로만 허용: ① 앱 설정에서 직접 입력(`gb:ai/key`), ② 프로젝트 루트 `.env`(gitignore) 의 `GEMINI_API_KEY` 를 빌드 때 `BuildConfig.AI_KEY` 로 박아 넣기(사용자 결정, 2026-09-21). ①이 ②보다 우선. `.env` 키는 기본 **debug 빌드에만** 들어가고 release 는 `AI_KEY_IN_RELEASE=true` 를 적어야 들어간다(APK 에서 꺼낼 수 있으니). 백업·미러에는 어느 쪽도 담지 않는다. Claude 는 키 값을 파일에 적지 않는다 — 사용자가 직접 적는다.
+- **AI API 키는 코드나 저장소에 절대 넣지 않고, 사용자에게 입력받지도 않는다.** 빌드 때 박아 넣는 한 경로만 있다(사용자 결정, 2026-09-24 — 설정 입력칸은 뺐다): PC 는 프로젝트 루트 `.env`(gitignore) 의 `GEMINI_API_KEY`, CI 는 같은 이름의 GitHub 시크릿, 클라우드는 같은 이름의 환경 변수 → `BuildConfig.AI_KEY`. 기본 **debug 빌드에만** 들어가고 release 는 `AI_KEY_IN_RELEASE=true` 를 적어야 들어간다(APK 에서 꺼낼 수 있으니). 백업·미러에는 담지 않는다. Claude 는 키 값을 파일에 적지 않는다 — 사용자가 시크릿·환경 변수에 직접 넣는다.
 - 통계 탭 AI 에 보내는 데이터는 카테고리별 지출 합계 숫자뿐이다. 가게 이름·메모 등 개별 거래 내용은 보내지 않는다. **예외는 영수증 스캔 하나** — 사용자가 고른 영수증 사진을 같은 키로 Gemini 에 보낸다(2026-09-23 사용자 결정). 그 외 경로로 개별 거래를 내보내지 않는다.
 - AI 조언은 한 달에 한 번 생성해 캐시한다. 화면을 열 때마다 자동으로 다시 부르지 않는다 — 사용자가 "다시 생성"을 눌러야 한다.
 - 스토어 빌드에는 원격 업데이트를 넣지 않는다. 개인 빌드(debug)만 한다.
@@ -221,7 +221,7 @@ JDK 17(Temurin)·Gradle 8.11.1·명령줄 도구·platform-tools·android-36·bu
 - 컨테이너는 세션이 끝나면 사라진다. `~/.ledger-tools` 도 같이 사라지니 **새 클라우드 세션마다 다시 받는다**(몇 분 걸림).
 - 네트워크가 막혀 있으면 실패한다 — `api.adoptium.net`, `services.gradle.org`, `dl.google.com`, `maven.google.com`, `repo.maven.apache.org`, `plugins.gradle.org` 가 열려 있어야 한다.
 - 출력에 `Picked up JAVA_TOOL_OPTIONS: ...` 줄이 반복돼 찍히는 건 샌드박스 프록시 설정이지 오류가 아니다.
-- `.env` 는 저장소에 없으니 클라우드에서 만든 debug APK 엔 내장 AI 키가 안 들어간다(설정에서 직접 넣은 키는 그대로 됨).
+- `.env` 는 저장소에 없으니 클라우드 환경 변수 `GEMINI_API_KEY` 가 없으면 debug APK 에 AI 키가 안 들어가 AI 조언·영수증 스캔이 안 된다. 빌드 전에 `echo ${GEMINI_API_KEY:+있음}` 으로 확인.
 - 클라우드 환경 변수에 `LEDGER_DEBUG_KEYSTORE_B64` 가 없으면 debug APK 가 세션마다 다른 자동 키로 서명돼 **폰의 기존 앱 위에 설치되지 않는다**(§1). 빌드 전에 `echo ${LEDGER_DEBUG_KEYSTORE_B64:+있음}` 으로 확인하고, 없으면 사용자에게 알린다. 서명 확인: `$ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs <apk>`.
 - 클라우드 세션은 별도 브랜치 + PR 로 일한다. 폰 자동 업데이트는 `main` 을 읽으니 **merge 해야 화면이 반영**되고, 네이티브 변경은 어차피 APK 재설치다.
 

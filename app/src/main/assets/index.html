@@ -539,10 +539,9 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
   <p class="hdr">AI 조언 (통계 탭)</p>
   <div class="card">
     <div class="row"><span class="t">캐릭터 이름</span><input id="aiNameInput" type="text" placeholder="루나" style="text-align:right;width:100%"></div>
-    <div class="row"><span class="t">Gemini API 키</span><input id="aiKeyInput" type="password" autocomplete="off" placeholder="AIza…" style="text-align:right;width:100%"></div>
     <div class="row"><span class="t">모델</span><input id="aiModelInput" type="text" placeholder="gemini-flash-lite-latest" style="text-align:right;width:100%"></div>
   </div>
-  <p class="note">키는 이 기기에만 저장되고 백업 파일에는 담기지 않습니다. 통계 탭 조언에는 카테고리별 지출 합계 숫자만 보내고, 가게 이름이나 메모는 보내지 않습니다. 결제 대기열의 <b>영수증 스캔</b>은 고른 사진을 같은 키로 Google Gemini 에 보내 금액·가게·날짜를 읽습니다. 무료 사용량이 있는 가장 가벼운 모델이 기본값이며, 실제 무료 여부·한도는 Google 쪽 정책입니다. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">키 발급받기</a></p>
+  <p class="note" id="aiKeyNote">AI 키는 앱에 내장돼 있어 따로 넣지 않습니다. 통계 탭 조언에는 카테고리별 지출 합계 숫자만 보내고, 가게 이름이나 메모는 보내지 않습니다. 결제 대기열의 <b>영수증 스캔</b>은 고른 사진을 Google Gemini 에 보내 금액·가게·날짜를 읽습니다. 무료 사용량이 있는 가장 가벼운 모델이 기본값입니다.</p>
   <p class="hdr">데이터</p>
   <div class="card">
     <button class="row tap" id="bkExport" style="width:100%;text-align:left"><span class="t">백업 파일 내보내기</span><span class="val" id="bkLast"></span><span class="chev">›</span></button>
@@ -713,11 +712,6 @@ $("bkCancel").addEventListener("click",()=>{pendingRestore=null;$("bkAlert").cla
 $("aiNameInput").addEventListener("change",e=>{
   try{localStorage.setItem("gb:ai/name",e.target.value.trim()||"루나");}catch(err){}
   if(tab==="stat")renderAiCard();
-});
-$("aiKeyInput").addEventListener("change",e=>{
-  const v=e.target.value.trim();
-  try{v?localStorage.setItem("gb:ai/key",v):localStorage.removeItem("gb:ai/key");}catch(err){}
-  aiErr=null;if(tab==="stat")renderAiCard();
 });
 $("aiModelInput").addEventListener("change",e=>{
   const v=e.target.value.trim();
@@ -1012,7 +1006,9 @@ const AI_DEFAULT_MODEL="gemini-flash-lite-latest";
 const AI_PERSONA_DEFAULT="너는 얼음과 달의 기운을 다루는 우아한 마법사야. 차분하고 다정하지만 가끔 장난스럽게 놀리는 말투를 쓰고, 항상 존댓말로 말해.";
 /* 설정에서 넣은 키가 우선, 없으면 빌드 때 .env 에서 박아 넣은 키(개인용 빌드) */
 function builtinAiKey(){try{return (window.Android&&window.Android.builtinAiKey&&window.Android.builtinAiKey())||"";}catch(e){return "";}}
-function aiKey(){try{return localStorage.getItem("gb:ai/key")||builtinAiKey();}catch(e){return builtinAiKey();}}
+/* 키는 빌드 때 박아 넣은 것만 쓴다 (사용자 결정, 2026-09-24: 설정에서 입력받지 않는다) */
+function aiKey(){return builtinAiKey();}
+const noKeyMsg="이 앱 빌드에는 AI 키가 없습니다. 개인용 빌드를 다시 받아 설치해 주세요.";
 function aiModel(){try{return localStorage.getItem("gb:ai/model")||AI_DEFAULT_MODEL;}catch(e){return AI_DEFAULT_MODEL;}}
 function aiName(){try{return localStorage.getItem("gb:ai/name")||"루나";}catch(e){return "루나";}}
 function aiPersona(){try{return localStorage.getItem("gb:ai/persona")||AI_PERSONA_DEFAULT;}catch(e){return AI_PERSONA_DEFAULT;}}
@@ -1039,7 +1035,7 @@ function aiPrompt(m){
 async function aiGenerate(){
   if(aiBusy)return;
   const key=aiKey();
-  if(!key){openAiSettings();return;}
+  if(!key){toast(noKeyMsg);return;}
   aiBusy=true;aiErr=null;renderAiCard("loading");
   try{
     const url="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(aiModel())+":generateContent?key="+encodeURIComponent(key);
@@ -1072,9 +1068,7 @@ function renderAiCard(state){
   const nm=esc(aiName());
   if(!aiKey()){
     bub.innerHTML='<p style="font-weight:600">'+nm+'</p>'+
-      '<p style="color:var(--label2)">AI 키를 넣으면 이번 달 지출을 봐 드려요.</p>'+
-      '<button class="btn tint" id="aiSetupBtn" style="height:40px;font-size:14px;width:auto;padding:0 16px;display:inline-block">설정에서 키 넣기</button>';
-    $("aiSetupBtn").addEventListener("click",openAiSettings);
+      '<p style="color:var(--label2)">'+noKeyMsg+'</p>';
     return;
   }
   if(state==="loading"){
@@ -1101,11 +1095,6 @@ function renderAiCard(state){
     (note.advice?'<p style="color:var(--label2)">'+esc(note.advice)+'</p>':'')+
     '<button class="row tap" id="aiRegenBtn" style="padding:0;min-height:0;color:var(--blue);font-size:13px;width:auto">다시 생성</button>';
   $("aiRegenBtn").addEventListener("click",aiGenerate);
-}
-function openAiSettings(){
-  applyTheme(currentTheme());renderSettings();
-  $("themeSheet").classList.add("open");scrim.classList.add("open");lockScroll(true);
-  setTimeout(()=>{const el=$("aiKeyInput");if(el)el.focus();},380);
 }
 
 /* 원그래프 + 항목 줄. entries=[[이름,값],...] (값>0). 통계 탭 카테고리, 자산 탭 항목별 비율에 같이 쓴다. */
@@ -1432,10 +1421,8 @@ function renderSettings(){
   const host=$("setNotif"),note=$("setNotifNote");
   $("bkLast").textContent="마지막 "+lastBackupLabel();
   $("aiNameInput").value=aiName();$("aiModelInput").value=aiModel();
-  /* 내장 키는 화면에 보여 주지 않는다. 직접 넣은 키만 칸에 표시. */
-  let userKey="";try{userKey=localStorage.getItem("gb:ai/key")||"";}catch(e){}
-  $("aiKeyInput").value=userKey;
-  $("aiKeyInput").placeholder=(!userKey&&builtinAiKey())?"앱에 내장된 키 사용 중":"AIza…";
+  $("aiKeyNote").style.color=builtinAiKey()?"":"var(--red)";
+  if(!builtinAiKey())$("aiKeyNote").textContent=noKeyMsg+" (클라우드·CI 빌드는 GEMINI_API_KEY 시크릿이 있어야 키가 들어갑니다.)";
   renderReminders();
   if(!hasBridge()){
     host.innerHTML='<div class="row"><span class="t">알림 감지</span><span class="val">앱에서만 가능</span></div>';
@@ -1754,7 +1741,7 @@ async function scanReceipt(file){
 let scanning=false;
 $("ibScan").addEventListener("click",()=>{
   if(scanning)return;
-  if(!aiKey()){backToInbox=true;openAiSettings();return;}
+  if(!aiKey()){toast(noKeyMsg);return;}
   $("rcFile").value="";$("rcFile").click();
 });
 $("rcFile").addEventListener("change",async()=>{

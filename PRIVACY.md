@@ -28,23 +28,23 @@
 
 ## 통계 탭의 AI 조언 (선택 기능)
 
-통계 탭에는 이번 달 지출을 짧게 논평하고 다음 달 조언을 주는 캐릭터 카드가 있습니다. 이 기능은 **기본적으로 꺼져 있고**, 사용자가 설정에서 자신의 Gemini API 키를 직접 넣어야 동작합니다.
+통계 탭에는 이번 달 지출을 짧게 논평하고 다음 달 조언을 주는 캐릭터 카드가 있습니다. 이 기능은 개발자가 빌드할 때 넣어 둔 Gemini API 키로 동작하며, 사용자가 "생성하기"를 누를 때만 요청을 보냅니다.
 
-- 키를 넣으면 앱은 **이번 달 총수입·지출·저축, 예산 대비 사용률, 카테고리별 지출 합계 숫자, 전달 대비 증감**만 사용자의 키로 Google 의 Gemini API 에 직접 보냅니다. 서버를 거치지 않고 기기에서 곧장 나갑니다.
+- 앱은 **이번 달 총수입·지출·저축, 예산 대비 사용률, 카테고리별 지출 합계 숫자, 전달 대비 증감**만 Google 의 Gemini API 에 직접 보냅니다. 서버를 거치지 않고 기기에서 곧장 나갑니다.
 - 가게 이름, 메모, 개별 결제 내역은 **절대 보내지 않습니다.** 카테고리별 합계 숫자만 갑니다.
-- 입력한 API 키는 이 기기에만 저장되며, 백업 파일과 자동 백업 미러 어디에도 포함되지 않습니다. 폰을 바꾸면 키는 새로 입력해야 합니다.
+- API 키는 앱 안에 있으며 백업 파일과 자동 백업 미러 어디에도 포함되지 않습니다.
 - 생성된 조언 문구는 한 달에 한 번만 만들어 기기에 저장해 두고, 사용자가 "다시 생성"을 누르기 전에는 다시 보내지 않습니다.
-- 이 기능을 쓰지 않으면(키를 넣지 않으면) 어떤 데이터도 Google 로 가지 않습니다.
+- "생성하기"를 누르지 않으면 어떤 데이터도 Google 로 가지 않습니다.
 - Gemini API 로 보낸 데이터가 Google 쪽에서 어떻게 쓰이는지는 Google 의 자체 정책을 따르며, 이 앱의 개발자가 관여하지 않습니다.
 
 ## 영수증 스캔 (선택 기능)
 
-결제 대기열 화면의 **영수증 스캔**을 누르고 사진을 고르면, 그 사진이 사용자의 Gemini API 키로 Google 의 Gemini API 에 직접 전송되어 금액·가게 이름·날짜를 읽어 옵니다.
+결제 대기열 화면의 **영수증 스캔**을 누르고 사진을 고르면, 그 사진이 Google 의 Gemini API 에 직접 전송되어 금액·가게 이름·날짜를 읽어 옵니다.
 
 - 사용자가 버튼을 누르고 사진을 고른 경우에만 전송됩니다. 자동으로 사진을 읽거나 보내지 않습니다.
 - 전송되는 것은 고른 사진과 "결제 정보를 JSON 으로 읽어 달라"는 요청 문구뿐입니다. 가계부의 다른 기록은 함께 보내지 않습니다.
 - 읽어 온 금액·가게·날짜는 결제 대기열에 들어가며, 사진 자체는 앱이 저장하지 않습니다.
-- 이 기능도 키를 넣지 않으면 동작하지 않으며, 전송된 사진의 처리 방식은 Google 의 정책을 따릅니다.
+- 전송된 사진의 처리 방식은 Google 의 정책을 따릅니다.
 
 ## 하루 예산 알림 (선택 기능)
 
@@ -77,9 +77,9 @@
 
 This app has **no server**. Everything you enter, every payment notification it reads, and all settings stay on your device. Nothing is sent to the developer or any third party. There are no accounts, no ads, and no analytics.
 
-**Optional AI spending advice** (Stats tab): off by default. If you enter your own Gemini API key in Settings, the app sends only aggregate numbers (totals, per-category sums, budget usage) directly from your device to Google's Gemini API using your key — never merchant names or individual transaction memos. The key stays on-device and is excluded from backups.
+**Optional AI spending advice** (Stats tab): only when you tap "생성하기", the app sends only aggregate numbers (totals, per-category sums, budget usage) directly from your device to Google's Gemini API using a key bundled in the app — never merchant names or individual transaction memos.
 
-**Optional receipt scan**: only when you tap "영수증 스캔" and pick photos, those photos are sent with your own Gemini key directly to Google's Gemini API to read the amount, merchant and date. The app does not store the photos.
+**Optional receipt scan**: only when you tap "영수증 스캔" and pick photos, those photos are sent directly to Google's Gemini API to read the amount, merchant and date. The app does not store the photos.
 
 **Optional daily-budget reminders** are computed on-device and post local notifications only; nothing leaves the device.
 

@@ -5,6 +5,7 @@ const tests = {
   "백업·복원": require("./backup.test"),
   "AI 지출 도우미": require("./ai.test"),
   "알림 감지 진단": require("./diag.test"),
+  "하루 예산·검색·통계·영수증": require("./budget.test"),
 };
 (async () => {
   let failed = 0;

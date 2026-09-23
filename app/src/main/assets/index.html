@@ -165,6 +165,20 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .barx{display:flex;gap:7px;padding:6px 16px 12px;font-size:11px;color:var(--label2);text-align:center}
 .barx span{flex:1;overflow:hidden}
 .swatch{width:10px;height:10px;border-radius:3px;flex:none}
+.bars.dense{gap:2px}
+.heatgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:12px 16px 4px}
+.heatgrid .dow{font-size:11px;color:var(--label2);text-align:center;padding-bottom:2px}
+.heat{aspect-ratio:1;border-radius:7px;background:var(--fill);font-size:11px;display:flex;align-items:center;justify-content:center;color:var(--label2);font-variant-numeric:tabular-nums}
+.heat.on{color:var(--label)}
+.heat.hot{color:#fff}
+.heat.today{box-shadow:inset 0 0 0 2px var(--blue)}
+.searchbar{display:flex;gap:8px;margin:0 16px 14px}
+.searchbar input{flex:1;min-width:0;height:36px;border-radius:10px;background:var(--fill);padding:0 12px;font-size:15px;color:var(--label)}
+.searchbar input::placeholder{color:var(--label3)}
+.searchbar select{height:36px;border-radius:10px;background:var(--fill);padding:0 10px;font-size:14px;color:var(--label);appearance:none;max-width:44%}
+.bignum{padding:14px 16px 6px}
+.bignum small{display:block;font-size:13px;color:var(--label2);margin-bottom:2px}
+.bignum b{display:block;font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1.15}
 
 /* 버튼 */
 .btn{display:block;width:100%;height:50px;border-radius:12px;background:var(--blue);color:#fff;font-size:17px;font-weight:600}
@@ -362,6 +376,7 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
 
 <main>
   <div class="card" id="summaryCard">
+    <button class="row tap" id="todayRow" style="width:100%;text-align:left"><span class="t">오늘 쓸 수 있는 돈</span><span class="val tnum" id="sToday"></span><span class="chev">›</span></button>
     <div class="stats">
       <div><span>수입</span><b class="tnum blue" id="sIn">0</b></div>
       <div><span>지출</span><b class="tnum red" id="sOut">0</b></div>
@@ -413,7 +428,11 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <div id="ibNotice"></div>
     <div id="ibList"></div>
   </div>
-  <div class="screenfoot"><button class="btn" id="ibSave">일괄 저장</button></div>
+  <div class="screenfoot" style="display:flex;gap:10px">
+    <button class="btn tint" id="ibScan" style="flex:1">영수증 스캔</button>
+    <button class="btn" id="ibSave" style="flex:1.4">일괄 저장</button>
+  </div>
+  <input type="file" id="rcFile" accept="image/*" multiple hidden>
 </div>
 
 <div class="sheet" id="gSheet" role="dialog" aria-label="결제 기록">
@@ -514,7 +533,7 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <div class="row"><span class="t">Gemini API 키</span><input id="aiKeyInput" type="password" autocomplete="off" placeholder="AIza…" style="text-align:right;width:100%"></div>
     <div class="row"><span class="t">모델</span><input id="aiModelInput" type="text" placeholder="gemini-flash-lite-latest" style="text-align:right;width:100%"></div>
   </div>
-  <p class="note">키는 이 기기에만 저장되고 백업 파일에는 담기지 않습니다. AI 에게는 카테고리별 지출 합계 숫자만 보내고, 가게 이름이나 메모는 보내지 않습니다. 무료 사용량이 있는 가장 가벼운 모델이 기본값이며, 실제 무료 여부·한도는 Google 쪽 정책입니다. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">키 발급받기</a></p>
+  <p class="note">키는 이 기기에만 저장되고 백업 파일에는 담기지 않습니다. 통계 탭 조언에는 카테고리별 지출 합계 숫자만 보내고, 가게 이름이나 메모는 보내지 않습니다. 결제 대기열의 <b>영수증 스캔</b>은 고른 사진을 같은 키로 Google Gemini 에 보내 금액·가게·날짜를 읽습니다. 무료 사용량이 있는 가장 가벼운 모델이 기본값이며, 실제 무료 여부·한도는 Google 쪽 정책입니다. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">키 발급받기</a></p>
   <p class="hdr">데이터</p>
   <div class="card">
     <button class="row tap" id="bkExport" style="width:100%;text-align:left"><span class="t">백업 파일 내보내기</span><span class="val" id="bkLast"></span><span class="chev">›</span></button>
@@ -722,6 +741,17 @@ function catTotals(type){
   return Object.entries(m).sort((a,b)=>b[1]-a[1]);
 }
 const daysIn=()=>{const[y,m]=ym.split("-").map(Number);return new Date(y,m,0).getDate();};
+/* ── 하루 예산 ── "오늘쓸돈" 방식: (월 예산 − 오늘 전까지 쓴 돈) ÷ 오늘 포함 남은 날 = 오늘 쓸 수 있는 돈.
+   적게 쓴 날의 여유는 자동으로 다음 날로 넘어간다. 이달 화면이 아니거나 예산이 없으면 null. */
+function dailyBudget(){
+  const tot=cfg.budget.total||0,today=todayISO();
+  if(!tot||today.slice(0,7)!==ym)return null;
+  const n=daysIn(),day=Number(today.slice(8)),left=n-day+1;
+  let before=0,spent=0;
+  txs.forEach(t=>{if(t.type!=="expense")return;if(t.d<today)before+=t.amount;else if(t.d===today)spent+=t.amount;});
+  const allow=Math.floor((tot-before)/left);
+  return {total:tot,allow,spent,rest:allow-spent,left,monthRest:tot-before-spent};
+}
 const firstDow=()=>{const[y,m]=ym.split("-").map(Number);return new Date(y,m-1,1).getDay();};
 const totalSaved=()=>cfg.plan.goal.base+Object.values(summary).reduce((a,v)=>a+(v.s||0),0);
 
@@ -740,6 +770,7 @@ $("tabbar").innerHTML=TABS.map(([k,n])=>
 $("tabbar").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
   tab=b.dataset.tab;window.scrollTo({top:0});render();
 }));
+$("todayRow").addEventListener("click",()=>{tab="budget";window.scrollTo({top:0});render();});
 
 /* ── 상단 ── */
 function renderTop(){
@@ -751,6 +782,12 @@ function renderTop(){
     $("sIn").textContent=fmt(t.i);$("sOut").textContent=fmt(t.e);$("sSav").textContent=fmt(t.s);
     const net=t.i-t.e-t.s,el=$("sNet");
     el.textContent=fmt(net)+"원";el.style.color=net<0?"var(--red)":"var(--label)";
+    /* 앱을 열면 오늘 쓸 수 있는 돈이 가장 먼저 보이게 */
+    const db=dailyBudget(),tr=$("todayRow"),st=$("sToday");
+    if(db){tr.style.display="";st.textContent=(db.rest<0?"−"+fmt(-db.rest)+"원 초과":fmt(db.rest)+"원");
+      st.style.color=db.rest<0?"var(--red)":"var(--green)";st.style.fontWeight="600";}
+    else if(todayISO().slice(0,7)===ym){tr.style.display="";st.textContent="예산 정하기";st.style.color="var(--label2)";st.style.fontWeight="";}
+    else tr.style.display="none";
   }
   const title=tab==="tx"?"가계부":TABS.find(x=>x[0]===tab)[1];
   $("largeTitle").textContent=title;
@@ -790,7 +827,22 @@ function renderTx(){
     body.appendChild(calEl());
     if(!txSel)body.insertAdjacentHTML("beforeend",hdr("날짜를 누르면 그날 기록을 봅니다. 기록을 누르면 고칠 수 있습니다."));
   }
-  else body.appendChild(listEl());
+  else{
+    /* 검색·카테고리 필터 (목록 보기에서만). 입력 중에는 목록만 갈아 끼워 커서를 유지한다. */
+    const cats=Array.from(new Set(txs.map(x=>x.cat))).sort();
+    body.innerHTML='<div class="searchbar"><input type="search" id="txQ" placeholder="검색 (메모·카테고리)" autocomplete="off" value="'+esc(txQ)+'">'+
+      '<select id="txCatSel" aria-label="카테고리"><option value="">전체</option>'+cats.map(c=>'<option'+(c===txCat?" selected":"")+'>'+esc(c)+'</option>').join("")+'</select></div>'+
+      '<div id="txList"></div>';
+    const paint=()=>{const L=$("txList");L.innerHTML="";L.appendChild(listEl());};
+    $("txQ").addEventListener("input",e=>{txQ=e.target.value;paint();});
+    $("txCatSel").addEventListener("change",e=>{txCat=e.target.value;paint();});
+    paint();
+  }
+}
+let txQ="",txCat="";
+function txFiltered(){
+  const q=txQ.trim().toLowerCase();
+  return txs.filter(x=>(!txCat||x.cat===txCat)&&(!q||(x.cat+" "+(x.memo||"")).toLowerCase().includes(q)));
 }
 function calCard(key,list,onDay,sel){
   const map={};(list||[]).forEach(t=>{(map[t.d]=map[t.d]||[]).push(t);});
@@ -826,7 +878,13 @@ function calEl(){
 function listEl(){
   const box=document.createElement("div");
   if(!txs.length){box.innerHTML=card('<p class="empty">이 달 내역이 없습니다.<br>오른쪽 위 ＋ 로 추가하세요.</p>');return box;}
-  const map=byDay();
+  const list=txFiltered(),filtering=txQ.trim()||txCat;
+  if(!list.length){box.innerHTML=card('<p class="empty">검색 결과가 없습니다.</p>');return box;}
+  if(filtering){
+    const t=totals(list);
+    box.insertAdjacentHTML("beforeend",'<p class="hdr tnum">'+list.length+'건'+(t.e?' · 지출 '+fmt(t.e)+'원':'')+(t.i?' · 수입 '+fmt(t.i)+'원':'')+(t.s?' · 저축 '+fmt(t.s)+'원':'')+'</p>');
+  }
+  const map={};list.forEach(t=>{(map[t.d]=map[t.d]||[]).push(t);});
   Object.keys(map).sort((a,b)=>b.localeCompare(a)).forEach(d=>{
     const t=totals(map[d]),day=new Date(d+"T00:00:00");
     let head=Number(d.slice(5,7))+"월 "+Number(d.slice(8))+"일 ("+["일","월","화","수","목","금","토"][day.getDay()]+")";
@@ -851,11 +909,26 @@ function listEl(){
 }
 
 /* ── 예산 ── */
+/* 오늘 카드 — 예산 탭 맨 위. 총 예산을 고치는 중에도 바로 따라가도록 값만 갈아 끼운다. */
+function paintToday(){
+  const host=$("todayCard");if(!host)return;
+  const db=dailyBudget(),thisMonth=todayISO().slice(0,7)===ym;
+  if(!thisMonth){host.innerHTML='<p class="empty">오늘 쓸 수 있는 돈은 이번 달 화면에서만 보입니다.</p>';return;}
+  if(!db){host.innerHTML='<p class="empty">아래에서 총 예산을 정하면<br>오늘 쓸 수 있는 돈이 계산됩니다.</p>';return;}
+  const over=db.rest<0;
+  host.innerHTML='<div class="bignum"><small>'+(over?"오늘 예산을 넘었습니다":"오늘 쓸 수 있는 돈")+'</small>'+
+    '<b class="tnum" style="color:'+(over?"var(--red)":"var(--green)")+'">'+(over?"−":"")+fmt(Math.abs(db.rest))+'원</b></div>'+
+    '<div class="row"><span class="t">하루 기준</span><span class="val tnum">'+fmt(db.allow)+'원</span></div>'+
+    '<div class="row"><span class="t">오늘 쓴 돈</span><span class="val tnum">'+fmt(db.spent)+'원</span></div>'+
+    '<div class="row"><span class="t">이달 남은 돈</span><span class="val tnum">'+fmt(db.monthRest)+'원 · '+db.left+'일</span></div>';
+}
 function renderBudget(){
   const v=view(),t=totals(),n=daysIn();
   const cur=todayISO().slice(0,7)===ym?new Date().getDate():n;
   const tot=cfg.budget.total||0,used=t.e,pc=tot?Math.min(100,used/tot*100):0;
-  v.innerHTML=hdr("이번 달 예산")+
+  const calc=Object.assign({income:0,fixed:0,saving:0},cfg.budget.calc||{});
+  v.innerHTML=hdr("오늘")+'<div class="card" id="todayCard"></div>'+
+    hdr("이번 달 예산")+
     card('<div class="row"><span class="t">총 예산</span><input id="bt" type="text" inputmode="numeric" placeholder="설정 안 함" value="'+moneyStr(tot)+'"></div>'+
       '<div style="padding:12px 16px 14px">'+
         '<div style="display:flex;justify-content:space-between;font-size:15px" class="tnum">'+
@@ -866,13 +939,37 @@ function renderBudget(){
         '<span>'+cur+'일째</span><span>'+Math.max(0,n-cur)+'일 남음</span></div>'+
         '<div class="track"><i style="width:'+(cur/n*100)+'%;background:var(--indigo)"></i></div>'+
       '</div>')+
+    hdr("예산 계산")+
+    card('<div class="row"><span class="t">실수령액</span><input id="bcIncome" type="text" inputmode="numeric" placeholder="'+(cfg.plan.income?fmt(cfg.plan.income)+"원":"0")+'" value="'+moneyStr(calc.income)+'"></div>'+
+      '<div class="row"><span class="t">고정비</span><input id="bcFixed" type="text" inputmode="numeric" placeholder="월세·통신·보험·구독" value="'+moneyStr(calc.fixed)+'"></div>'+
+      '<div class="row"><span class="t">저축</span><input id="bcSaving" type="text" inputmode="numeric" placeholder="0" value="'+moneyStr(calc.saving)+'"></div>'+
+      '<div class="row"><span class="t">이번 달 쓸 수 있는 돈</span><span class="val tnum" id="bcOut" style="color:var(--label);font-weight:600"></span></div>'+
+      '<div class="row"><span class="t">하루</span><span class="val tnum" id="bcDay"></span></div>'+
+      '<button class="row tap" id="bcApply" style="width:100%;text-align:left"><span class="t blue">총 예산으로 넣기</span></button>')+
+    '<p class="note">실수령액에서 매달 거의 같은 지출(고정비)과 저축을 빼고 이 달 날짜 수로 나눕니다.</p>'+
     hdr("카테고리 예산")+'<div id="bcats"></div>';
+  paintToday();
   bindMoney($("bt"),val=>{
     cfg.budget.total=val;
     const p=val?Math.min(100,used/val*100):0,f=$("bfill");
     f.style.width=p+"%";f.className=p>=100?"over":p>=80?"warn":"";
     $("brest").textContent=val?"남은 "+fmt(Math.max(0,val-used))+"원":"—";
-    saveCfg();
+    saveCfg();paintToday();renderTop();
+  });
+  /* 예산 계산기 (오늘쓸돈 계산기 방식) */
+  const calcOut=()=>{
+    const inc=calc.income||cfg.plan.income||0,m=Math.max(0,inc-calc.fixed-calc.saving);
+    $("bcOut").textContent=inc?fmt(m)+"원":"—";
+    $("bcDay").textContent=inc?fmt(Math.floor(m/n))+"원":"—";
+    return m;
+  };
+  [["bcIncome","income"],["bcFixed","fixed"],["bcSaving","saving"]].forEach(([id,k])=>{
+    bindMoney($(id),val=>{calc[k]=val;cfg.budget.calc=calc;saveCfg();calcOut();});
+  });
+  calcOut();
+  $("bcApply").addEventListener("click",()=>{
+    const m=calcOut();if(!m){toast("실수령액을 넣어 주세요");return;}
+    cfg.budget.total=m;saveCfg();renderBudget();renderTop();toast("총 예산을 "+fmt(m)+"원으로 넣었습니다");
   });
   const map={};txs.filter(x=>x.type==="expense").forEach(x=>{map[x.cat]=(map[x.cat]||0)+x.amount;});
   const names=Array.from(new Set([...Object.keys(cfg.budget.cat),...Object.keys(map)]));
@@ -1045,6 +1142,36 @@ function renderStat(){
     '<div class="bars">'+weeks.map(w=>'<div style="height:'+(w.v/mx*100)+'%;background:var(--red)"></div>').join("")+'</div>'+
     '<div class="barx">'+weeks.map(w=>'<span>'+w.label+'</span>').join("")+'</div>'+
     weeks.map(w=>'<div class="row"><span class="t">'+w.label+'일</span><span class="val tnum">'+fmt(w.v)+'원</span></div>').join(""));
+  /* 일별 추이 */
+  const dayv=[];for(let d=1;d<=n;d++)dayv.push(0);
+  txs.forEach(t=>{if(t.type==="expense")dayv[+t.d.slice(8)-1]+=t.amount;});
+  const mxd=Math.max(1,...dayv),top=dayv.indexOf(mxd);
+  h+=hdr("일별 지출")+card(
+    '<div class="bars dense">'+dayv.map(v=>'<div style="height:'+(v/mxd*100)+'%;background:var(--red);opacity:'+(v?1:.25)+'"></div>').join("")+'</div>'+
+    '<div class="barx" style="gap:2px">'+dayv.map((v,i)=>'<span>'+(i%7===0?i+1:"")+'</span>').join("")+'</div>'+
+    (mxd>1?'<div class="row"><span class="t">가장 많이 쓴 날</span><span class="val tnum">'+(top+1)+'일 · '+fmt(mxd)+'원</span></div>':'')+
+    '<div class="row"><span class="t">하루 평균</span><span class="val tnum">'+fmt(dayv.reduce((a,b)=>a+b,0)/Math.max(1,todayISO().slice(0,7)===ym?Math.min(n,Number(todayISO().slice(8))):n))+'원</span></div>');
+  /* 히트맵 — 달력 모양, 많이 쓴 날일수록 진하게 */
+  const fd=firstDow(),tdISO=todayISO();
+  let heat='<div class="heatgrid">'+["일","월","화","수","목","금","토"].map(x=>'<div class="dow">'+x+'</div>').join("");
+  for(let i=0;i<fd;i++)heat+='<div></div>';
+  for(let d=1;d<=n;d++){
+    const v=dayv[d-1],r=v/mxd,iso=ym+"-"+pad(d);
+    const cls="heat"+(v?(r>.6?" hot":" on"):"")+(iso===tdISO?" today":"");
+    const st=v?' style="background:color-mix(in srgb,var(--red) '+Math.round(18+r*82)+'%,var(--fill))"':'';
+    heat+='<div class="'+cls+'"'+st+' title="'+fmt(v)+'원">'+d+'</div>';
+  }
+  h+=hdr("지출 히트맵")+card(heat+'</div><p class="note" style="margin:0;padding:8px 16px 14px">진할수록 많이 쓴 날입니다.</p>');
+  /* 요일별 패턴 — 지난 날들의 요일별 평균 */
+  const lastDay=tdISO.slice(0,7)===ym?Math.min(n,Number(tdISO.slice(8))):n;
+  const ds=[0,0,0,0,0,0,0],dc=[0,0,0,0,0,0,0];
+  for(let d=1;d<=lastDay;d++){const w=(fd+d-1)%7;ds[w]+=dayv[d-1];dc[w]++;}
+  const davg=ds.map((s,i)=>dc[i]?s/dc[i]:0),mxw=Math.max(1,...davg),topw=davg.indexOf(mxw);
+  const DOW=["일","월","화","수","목","금","토"];
+  h+=hdr("요일별 평균 지출")+card(
+    '<div class="bars">'+davg.map((v,i)=>'<div style="height:'+(v/mxw*100)+'%;background:var('+(i===topw&&v?"--red":"--orange")+')"></div>').join("")+'</div>'+
+    '<div class="barx">'+DOW.map(x=>'<span>'+x+'</span>').join("")+'</div>'+
+    (mxw>1?'<div class="row"><span class="t">가장 많이 쓰는 요일</span><span class="val tnum">'+DOW[topw]+'요일 · 평균 '+fmt(mxw)+'원</span></div>':'<div class="row"><span class="t" style="color:var(--label2)">기록이 쌓이면 요일별 습관이 보입니다.</span></div>'));
   /* 월별 */
   const keys=[],[yy,mm]=ym.split("-").map(Number);
   for(let i=5;i>=0;i--){const d=new Date(yy,mm-1-i,1);keys.push(d.getFullYear()+"-"+pad(d.getMonth()+1));}
@@ -1496,6 +1623,70 @@ $("ibDel").addEventListener("click",()=>{
   const n=picked().length;if(!n)return;
   inbox=inbox.filter(x=>x.sel===false);
   saveInbox();renderInbox();render();toast(n+"건을 지웠습니다");
+});
+
+/* ── 영수증 스캔 ── 사진을 Gemini 에 보내 금액·가게·날짜를 읽어 대기열에 넣는다 (사용자 요청, 2026-09-23).
+   사진은 사용자 키로 Google 에 곧장 간다 — 통계 탭 AI 와 달리 개별 거래(영수증 이미지)가 나가는 기능이라
+   설정 안내문과 PRIVACY.md 에 적어 두었다. 여러 장을 고르면 차례로 처리하고 읽은 것만 대기열에 올린다. */
+const RECEIPT_PROMPT='이 사진은 결제 영수증이야. 결제 정보를 읽어 JSON 으로만 답해. 형식: {"amount":총 결제 금액(숫자, 원 단위, 쉼표 없이),"merchant":"가게 이름","date":"결제일 YYYY-MM-DD, 모르면 빈 문자열"}. 영수증이 아니거나 총액을 못 읽으면 {"amount":0}. 다른 말은 절대 덧붙이지 마.';
+async function imageToB64(file){
+  /* 큰 사진은 1280px 로 줄여 보낸다. 캔버스를 못 쓰는 환경이면 원본 그대로. */
+  try{
+    const url=URL.createObjectURL(file);
+    const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url;});
+    const sc=Math.min(1,1280/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
+    const c=document.createElement("canvas");c.width=Math.round((img.naturalWidth||img.width)*sc);c.height=Math.round((img.naturalHeight||img.height)*sc);
+    const ctx=c.getContext("2d");if(!ctx)throw new Error("no canvas");
+    ctx.drawImage(img,0,0,c.width,c.height);
+    URL.revokeObjectURL(url);
+    const data=c.toDataURL("image/jpeg",0.82).split(",")[1];
+    if(!data)throw new Error("no data");
+    return {mime:"image/jpeg",data};
+  }catch(e){
+    const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]||"");r.onerror=rej;r.readAsDataURL(file);});
+    return {mime:file.type||"image/jpeg",data};
+  }
+}
+async function scanReceipt(file){
+  const key=aiKey();if(!key)throw new Error("키 없음");
+  const img=await imageToB64(file);
+  const url="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(aiModel())+":generateContent?key="+encodeURIComponent(key);
+  const body={contents:[{role:"user",parts:[{inlineData:{mimeType:img.mime,data:img.data}},{text:RECEIPT_PROMPT}]}],
+    generationConfig:{responseMimeType:"application/json",temperature:0}};
+  const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(!res.ok){
+    if(res.status===400||res.status===403)throw new Error("API 키를 확인해 주세요.");
+    if(res.status===429)throw new Error("요청이 너무 많습니다. 잠시 후 다시 시도하세요.");
+    throw new Error("요청에 실패했습니다 ("+res.status+").");
+  }
+  const json=await res.json();
+  const parts=json&&json.candidates&&json.candidates[0]&&json.candidates[0].content&&json.candidates[0].content.parts;
+  const text=parts&&parts[0]&&parts[0].text;
+  let out=null;try{out=JSON.parse(text);}catch(e){}
+  if(!out)throw new Error("응답 형식이 올바르지 않습니다.");
+  const amount=parseN(out.amount);
+  if(!amount)return null;
+  const merchant=cleanMerchant(String(out.merchant||"")).slice(0,24)||"영수증";
+  const d=/^\d{4}-\d{2}-\d{2}$/.test(String(out.date||""))&&String(out.date)<=todayISO()?String(out.date):todayISO();
+  return {id:uid(),amount,d,merchant,type:"expense",cat:guessCat(merchant),sel:true,src:"receipt"};
+}
+let scanning=false;
+$("ibScan").addEventListener("click",()=>{
+  if(scanning)return;
+  if(!aiKey()){backToInbox=true;openAiSettings();return;}
+  $("rcFile").value="";$("rcFile").click();
+});
+$("rcFile").addEventListener("change",async()=>{
+  const files=Array.from($("rcFile").files||[]);if(!files.length)return;
+  scanning=true;$("ibScan").disabled=true;$("ibScan").textContent="읽는 중…";
+  let ok=0,fail=0,err=null;
+  for(const f of files){
+    try{const it=await scanReceipt(f);if(it){inbox.push(it);ok++;}else fail++;}
+    catch(e){fail++;err=String((e&&e.message)||e);}
+  }
+  scanning=false;$("ibScan").disabled=false;$("ibScan").textContent="영수증 스캔";
+  if(ok){saveInbox();renderInbox();render();}
+  toast(ok?ok+"장을 읽었습니다"+(fail?" · "+fail+"장은 못 읽음":""):(err||"영수증을 읽지 못했습니다"));
 });
 
 /* ── 게임 소비 ── */

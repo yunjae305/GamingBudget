@@ -97,6 +97,12 @@ public class MainActivity extends AppCompatActivity {
             if (web != null) web.evaluateJavascript("window.__savedFile&&window.__savedFile(" + ok + ")", null);
         });
 
+    /** 하루 예산 알림 권한(안드로이드 13+). 결과는 화면의 __notifPerm(granted) 로 돌려준다. */
+    private final ActivityResultLauncher<String> askNotif =
+        registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+            if (web != null) web.evaluateJavascript("window.__notifPerm&&window.__notifPerm(" + granted + ")", null);
+        });
+
     /** 뒤로가기로 열려 있는 팝업·시트·전체화면을 먼저 닫게 하는 스크립트. 새 오버레이를 만들면 여기도 추가. */
     private static final String BACK_JS =
         "window.__back=function(){" +
@@ -219,6 +225,8 @@ public class MainActivity extends AppCompatActivity {
         });
 
         if (BuildConfig.REMOTE_UPDATE) checkForUpdate();
+        // 앱 업데이트 등으로 알람이 사라졌을 수 있으니 켜져 있던 하루 예산 알림을 다시 건다
+        Reminders.schedule(this);
     }
 
     /** 페이지의 안전 영역 변수(--sat/--sab)에 실측 인셋을 넣는다 */
@@ -445,6 +453,42 @@ public class MainActivity extends AppCompatActivity {
         public String readMirror() {
             if (!mirrorFile.exists()) return "";
             return new String(readFile(mirrorFile), StandardCharsets.UTF_8);
+        }
+
+        /** 하루 예산 알림 상태 {on, morning, evening, granted, needsPermission} */
+        @JavascriptInterface
+        public String reminders() {
+            return Reminders.stateJson(MainActivity.this);
+        }
+
+        /** 하루 예산 알림 켜기/끄기와 시각("HH:MM"). 바로 알람을 다시 건다. */
+        @JavascriptInterface
+        public void setReminders(boolean on, String morning, String evening) {
+            Reminders.set(MainActivity.this, on, morning, evening);
+        }
+
+        /** 안드로이드 13+ 알림 권한 요청. 결과는 window.__notifPerm(granted). 그 아래 버전은 바로 true. */
+        @JavascriptInterface
+        public void askNotifPermission() {
+            runOnUiThread(() -> {
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    try {
+                        askNotif.launch("android.permission.POST_NOTIFICATIONS");
+                        return;
+                    } catch (Exception ignored) {
+                    }
+                }
+                web.evaluateJavascript("window.__notifPerm&&window.__notifPerm(true)", null);
+            });
+        }
+
+        /** 알림 미리보기 — 설정에서 "지금 보내 보기". 예산이 없으면 아무것도 안 뜬다. */
+        @JavascriptInterface
+        public boolean testReminder(boolean evening) {
+            String[] m = Reminders.message(MainActivity.this, evening);
+            if (m == null) return false;
+            Reminders.postNow(MainActivity.this, m[0], m[1]);
+            return true;
         }
 
         /** 백업 파일 내보내기 — 시스템 저장 창을 띄우고, 결과는 window.__savedFile(ok) 로 알린다 */

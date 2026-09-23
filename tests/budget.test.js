@@ -60,11 +60,13 @@ module.exports = async function () {
   fixed.querySelector(".vin").value = "90"; fixed.querySelector(".vin").dispatchEvent(new w.Event("input")); await wait(10);
   assert(fixed.querySelector(".vin").value === "35%", "남은 몫(35%)까지만 — 실제: " + fixed.querySelector(".vin").value);
   assert(/모두 나눴습니다/.test($("restLbl").textContent), "합계 100% 면 모두 나눴습니다");
-  /* 생활비 봉투를 총 예산으로 */
-  assert($("pbSel").selectedOptions[0].textContent === "생활비", "기본 예산 봉투는 생활비");
-  $("pbApply").click(); await wait(20);
+  /* 생활비 봉투 금액이 곧 총 예산 (버튼 없이 자동) */
+  assert(/생활비.*600,000원.*총 예산/.test($("pbNote").textContent), "안내: 생활비 600,000 이 총 예산 — 실제: " + $("pbNote").textContent);
   d.querySelector('[data-tab="budget"]').click(); await wait(20);
-  assert(num($("bt").value) === 600000, "총 예산이 600,000 이어야 함 — 실제: " + $("bt").value);
+  assert(!$("bt") && num($("btVal").textContent) === 600000, "총 예산이 배분 탭 생활비 600,000 으로 자동 — 실제: " + ($("btVal") && $("btVal").textContent));
+  $("btRow").click(); await wait(20);
+  assert(d.querySelector('[data-tab="plan"]').getAttribute("aria-selected") === "true", "총 예산 줄을 누르면 배분 탭");
+  d.querySelector('[data-tab="budget"]').click(); await wait(20);
   assert(!$("bcIncome"), "예산 탭의 예산 계산 카드는 없어야 함");
   const allow2 = Math.floor((600000 - before) / left);
   assert($("todayCard").textContent.includes(new Intl.NumberFormat("ko-KR").format(allow2) + "원"), "오늘 카드가 새 예산으로 다시 계산 — 실제: " + $("todayCard").textContent);

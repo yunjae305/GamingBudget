@@ -794,6 +794,7 @@ function renderTop(){
     const net=t.i-t.e-t.s,el=$("sNet");
     el.textContent=fmt(net)+"원";el.style.color=net<0?"var(--red)":"var(--label)";
     /* 앱을 열면 오늘 쓸 수 있는 돈이 가장 먼저 보이게 — 내역 탭에서만. 통계·자산·배분은 수입/지출/저축만. */
+    syncBudgetFromPlan();
     const db=dailyBudget(),tr=$("todayRow"),st=$("sToday");
     if(tab!=="tx")tr.style.display="none";
     else if(db){tr.style.display="";st.textContent=(db.rest<0?"−"+fmt(-db.rest)+"원 초과":fmt(db.rest)+"원");
@@ -935,10 +936,14 @@ function paintToday(){
 function renderBudget(){
   const v=view(),t=totals(),n=daysIn();
   const cur=todayISO().slice(0,7)===ym?new Date().getDate():n;
+  const fromPlan=syncBudgetFromPlan();
   const tot=cfg.budget.total||0,used=t.e,pc=tot?Math.min(100,used/tot*100):0;
+  const totRow=fromPlan?
+    '<button class="row tap" id="btRow" style="width:100%;text-align:left"><span class="t">총 예산</span><span class="val tnum" id="btVal" style="color:var(--label);font-weight:600">'+fmt(cfg.budget.total)+'원</span><span class="sub" style="white-space:nowrap">배분 탭 '+esc(budgetEnv().name||"생활비")+'</span><span class="chev">›</span></button>':
+    '<div class="row"><span class="t">총 예산</span><input id="bt" type="text" inputmode="numeric" placeholder="설정 안 함" value="'+moneyStr(tot)+'"></div>';
   v.innerHTML=hdr("오늘")+'<div class="card" id="todayCard"></div>'+
     hdr("이번 달 예산")+
-    card('<div class="row"><span class="t">총 예산</span><input id="bt" type="text" inputmode="numeric" placeholder="설정 안 함" value="'+moneyStr(tot)+'"></div>'+
+    card(totRow+
       '<div style="padding:12px 16px 14px">'+
         '<div style="display:flex;justify-content:space-between;font-size:15px" class="tnum">'+
         '<span>사용 '+fmt(used)+'원'+(tot?" ("+Math.round(pc)+"%)":"")+'</span>'+
@@ -948,10 +953,11 @@ function renderBudget(){
         '<span>'+cur+'일째</span><span>'+Math.max(0,n-cur)+'일 남음</span></div>'+
         '<div class="track"><i style="width:'+(cur/n*100)+'%;background:var(--indigo)"></i></div>'+
       '</div>')+
-    '<p class="note">배분 탭에서 실수령액을 봉투로 나눈 뒤 총 예산으로 보낼 수도 있습니다.</p>'+
+    '<p class="note">'+(fromPlan?"총 예산은 배분 탭의 생활비 봉투 금액입니다. 바꾸려면 배분 탭에서 고치세요.":"배분 탭에서 실수령액과 생활비 봉투를 정하면 그 금액이 자동으로 총 예산이 됩니다.")+'</p>'+
     hdr("카테고리 예산")+'<div id="bcats"></div>';
   paintToday();
-  bindMoney($("bt"),val=>{
+  const btRow=$("btRow");if(btRow)btRow.addEventListener("click",()=>{tab="plan";window.scrollTo({top:0});render();});
+  if($("bt"))bindMoney($("bt"),val=>{
     cfg.budget.total=val;
     const p=val?Math.min(100,used/val*100):0,f=$("bfill");
     f.style.width=p+"%";f.className=p>=100?"over":p>=80?"warn":"";
@@ -1244,6 +1250,14 @@ function renderAsset(){
 const planBase=()=>cfg.plan.income||totals().i||0;
 const envPct=e=>e.mode==="amt"?(planBase()?Math.min(100,(e.amt||0)/planBase()*100):0):(e.pct||0);
 const envAmt=e=>e.mode==="amt"?(e.amt||0):planBase()*(e.pct||0)/100;
+/* 총 예산 = 생활비 봉투 금액 (사용자 결정, 2026-09-24: 예산과 생활비는 같은 것). 봉투가 없거나 실수령액이
+   없으면 예산 탭에서 직접 적은 값을 쓴다. 바뀌었으면 cfg.budget.total 에 써서 알림(mirror.json)도 같은 숫자를 본다. */
+function budgetEnv(){const P=cfg.plan;return P.envelopes.find(e=>e.id===P.budgetEnv)||P.envelopes.find(e=>/생활/.test(e.name||""))||null;}
+function syncBudgetFromPlan(){
+  const be=budgetEnv(),m=be?Math.round(envAmt(be)):0;
+  if(m>0&&cfg.budget.total!==m){cfg.budget.total=m;saveCfg();}
+  return m>0;
+}
 function renderPlan(){
   const v=view(),P=cfg.plan;
   const sumPct=()=>P.envelopes.reduce((a,e)=>a+envPct(e),0);
@@ -1258,10 +1272,7 @@ function renderPlan(){
       '<span id="restLbl"></span><span id="restVal" style="color:var(--label2)"></span></div></div>')+
     hdr("봉투")+'<div id="envs"></div>'+
     '<div class="linkrow"><button class="btn tint" id="eadd">봉투 추가</button></div>'+
-    hdr("예산으로 보내기")+
-    card('<div class="row"><span class="t">예산으로 쓸 봉투</span><select id="pbSel"></select></div>'+
-      '<button class="row tap" id="pbApply" style="width:100%;text-align:left"><span class="t blue">이 봉투 금액을 총 예산으로 넣기</span><span class="val tnum" id="pbAmt"></span></button>')+
-    '<p class="note">고른 봉투의 금액이 예산 탭의 이번 달 총 예산이 됩니다.</p>';
+    '<p class="note" id="pbNote"></p>';
 
   function paint(){
     const sb=$("sb");sb.innerHTML="";
@@ -1278,11 +1289,8 @@ function renderPlan(){
     if(!planBase()){lbl.textContent="실수령액을 넣으면 금액이 계산됩니다";lbl.style.color="var(--label2)";val.textContent="";}
     else if(rest>0.05){lbl.textContent="아직 안 나눈 돈";lbl.style.color="var(--label)";val.textContent=fmt(planBase()*rest/100)+"원 · "+(Math.round(rest*10)/10)+"%";}
     else{lbl.textContent="모두 나눴습니다";lbl.style.color="var(--label)";val.textContent="0원";}
-    const be=budgetEnv();$("pbAmt").textContent=be?fmt(envAmt(be))+"원":"";
-  }
-  function fillSel(){
-    const sel=$("pbSel"),be=budgetEnv();
-    sel.innerHTML=P.envelopes.map(e=>'<option value="'+e.id+'"'+(be&&e.id===be.id?" selected":"")+'>'+esc(e.name||"이름 없음")+'</option>').join("");
+    const be=budgetEnv();syncBudgetFromPlan();
+    $("pbNote").textContent=be?('"'+(be.name||"생활비")+'" 봉투 금액'+(planBase()?"("+fmt(envAmt(be))+"원)":"")+'이 예산 탭의 이번 달 총 예산이 됩니다.'):"이름에 '생활' 이 들어간 봉투 금액이 예산 탭의 총 예산이 됩니다.";
   }
   const envs=$("envs");
   if(!P.envelopes.length)envs.innerHTML=card('<p class="empty">봉투를 추가해 실수령액을 나눠 보세요.</p>');
@@ -1335,7 +1343,7 @@ function renderPlan(){
       try{const q=Math.max(0,vin.value.length-1);vin.setSelectionRange(q,q);}catch(err){}
       showOut();paint();saveCfg();
     });
-    nm.addEventListener("input",()=>{e.name=nm.value;saveCfg();fillSel();});
+    nm.addEventListener("input",()=>{e.name=nm.value;saveCfg();paint();});
     ck.addEventListener("change",()=>{e.saving=ck.checked;saveCfg();});
     del.addEventListener("click",()=>{P.envelopes.splice(i,1);saveCfg();renderPlan();});
     envs.appendChild(c);fillIn();
@@ -1347,13 +1355,7 @@ function renderPlan(){
       o.textContent=e.mode==="amt"?(planBase()?(Math.round(envPct(e)*10)/10)+"%":"실수령액 필요"):(planBase()?fmt(envAmt(e))+"원":"");});
     paint();
   });
-  $("pbSel").addEventListener("change",()=>{P.budgetEnv=$("pbSel").value;saveCfg();paint();});
-  $("pbApply").addEventListener("click",()=>{
-    const be=budgetEnv(),m=be?Math.round(envAmt(be)):0;
-    if(!m){toast("실수령액과 봉투 금액을 먼저 넣어 주세요");return;}
-    cfg.budget.total=m;saveCfg();toast("총 예산을 "+fmt(m)+"원으로 넣었습니다");
-  });
-  fillSel();paint();
+  paint();
 }
 
 /* ── 시트 ── */

@@ -109,7 +109,7 @@ public class MainActivity extends AppCompatActivity {
         "var m=[['notifAlert','naCancel'],['bkAlert','bkCancel'],['grpAlert','grpCancel'],['gameChoose','gcCancel']," +
         "['diagScreen','dgClose']," +
         "['sheet','fCancel'],['gSheet','gCancel'],['pSheet','pCancel'],['themeSheet','tDone']," +
-        "['pickScreen','pkClose'],['calScreen','calClose']," +
+        "['pickScreen','pkClose'],['ymSheet','ymCancel']," +
         "['gDetail','gdClose'],['inboxSheet','ibClose']];" +
         "for(var i=0;i<m.length;i++){var el=document.getElementById(m[i][0]);" +
         "if(el&&el.classList.contains('open')){var b=document.getElementById(m[i][1]);" +

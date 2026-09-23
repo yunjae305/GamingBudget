@@ -175,6 +175,13 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .searchbar input{flex:1;min-width:0;height:36px;border-radius:10px;background:var(--fill);padding:0 12px;font-size:15px;color:var(--label)}
 .searchbar input::placeholder{color:var(--label3)}
 .searchbar select{height:36px;border-radius:10px;background:var(--fill);padding:0 10px;font-size:14px;color:var(--label);appearance:none;max-width:44%}
+/* 달 선택 휠 — iOS 피커처럼 스크롤로 고른다. 칸 높이 36px, 위아래 90px 여백이라 가운데 칸이 선택. */
+.wheels{position:relative;display:flex;margin:4px 16px 6px;height:216px;background:var(--group);border-radius:var(--r);overflow:hidden}
+.wheelbar{position:absolute;left:8px;right:8px;top:90px;height:36px;border-radius:9px;background:var(--fill)}
+.wheel{position:relative;flex:1;overflow-y:auto;scroll-snap-type:y mandatory;padding:90px 0;scrollbar-width:none;overscroll-behavior:contain}
+.wheel::-webkit-scrollbar{display:none}
+.wheel div{height:36px;line-height:36px;text-align:center;font-size:21px;scroll-snap-align:center;color:var(--label3);font-variant-numeric:tabular-nums;cursor:pointer}
+.wheel div.on{color:var(--label);font-weight:600}
 .bignum{padding:14px 16px 6px}
 .bignum small{display:block;font-size:13px;color:var(--label2);margin-bottom:2px}
 .bignum b{display:block;font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1.15}
@@ -274,16 +281,6 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
   font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center}
 .step2 button:active{background:var(--fill2)}
 .step2 .q{min-width:20px;text-align:center;font-variant-numeric:tabular-nums;font-weight:600;font-size:17px}
-.calview{overflow:hidden;touch-action:pan-y;flex:1;min-height:0;padding:14px 0 16px}
-.caltrack{display:flex;width:300%;height:100%;will-change:transform;transform:translateX(-33.3333%)}
-.calpanel{width:33.3333%;flex:none;height:100%;overflow-y:auto;overscroll-behavior:contain}
-.calpanel .card{margin:0 16px 14px}
-.calpanel .cal{padding:10px 6px 12px}
-.calpanel .calgrid{grid-auto-rows:66px}
-.calpanel .dow{font-size:13px;padding:2px 0 8px}
-.calpanel .cell{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px 0;min-height:0}
-.calpanel .cell .d{width:32px;height:32px;font-size:17px}
-.calpanel .cell.sel .d{box-shadow:0 0 0 2px var(--blue)}
 .txrow{display:flex;gap:12px;align-items:center;padding:12px 16px;position:relative;width:100%;text-align:left}
 .txrow+.txrow::before{content:"";position:absolute;left:66px;right:0;top:0;height:.5px;background:var(--sep)}
 .txrow:active{background:var(--fill)}
@@ -292,7 +289,6 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .txrow .txbody{min-width:0;flex:1}
 .txrow .txbody b{display:block;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 .txrow .txbody span{display:block;font-size:13px;color:var(--label2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.calpanel .cell em{font-size:11px}
 .nav .bar .ym{font-size:17px;font-weight:600;min-width:106px;text-align:center;color:var(--label)}
 .nav .bar .ym:active{opacity:.5}
 .glist[hidden]{display:none}
@@ -468,17 +464,6 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
   <div style="height:18px"></div>
 </div>
 
-<div class="screen" id="calScreen" role="dialog" aria-label="달력">
-  <div class="screennav"><div class="inner">
-    <button id="calClose">닫기</button>
-    <span class="ttl tnum" id="calTitle"></span>
-    <button id="calToday" style="font-weight:600">오늘</button>
-  </div></div>
-  <div class="screenbody" style="overflow:hidden;display:flex;flex-direction:column">
-    <div class="calview" id="calView"><div class="caltrack" id="calTrack"></div></div>
-  </div>
-</div>
-
 <div class="screen" id="diagScreen" role="dialog" aria-label="알림 감지 진단">
   <div class="screennav"><div class="inner">
     <button id="dgClose">닫기</button>
@@ -505,6 +490,21 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <button id="pkNew" style="font-weight:600">새 제품</button>
   </div></div>
   <div class="screenbody" id="pkBody"></div>
+</div>
+
+<div class="sheet" id="ymSheet" role="dialog" aria-label="달 선택">
+  <div class="grabber"></div>
+  <div class="sheetnav">
+    <button id="ymCancel">취소</button>
+    <span class="ttl">달 선택</span>
+    <button class="done" id="ymOk">완료</button>
+  </div>
+  <div class="wheels">
+    <div class="wheelbar"></div>
+    <div class="wheel" id="wYear" aria-label="년"></div>
+    <div class="wheel" id="wMonth" aria-label="월"></div>
+  </div>
+  <div class="linkrow" style="padding-top:4px"><button class="btn tint" id="ymToday">이번 달</button></div>
 </div>
 
 <div class="sheet" id="themeSheet" role="dialog" aria-label="설정">
@@ -1347,7 +1347,7 @@ function closeSheet(){
   const back=backToInbox;backToInbox=false;
   sheet.classList.remove("open");$("themeSheet").classList.remove("open");
   $("gSheet").classList.remove("open");gEditId=null;
-  $("pSheet").classList.remove("open");
+  $("pSheet").classList.remove("open");$("ymSheet").classList.remove("open");
   scrim.classList.remove("open");editId=null;fromInbox=null;
   if(back){renderInbox();$("inboxSheet").classList.add("open");lockScroll(true);}
   else if(backToPick&&pickGame){backToPick=false;renderPick();$("pickScreen").classList.add("open");lockScroll(true);}
@@ -2174,34 +2174,8 @@ function chooseGame(cb){
   $("gameChoose").classList.add("open");
 }
 
-/* ── 전체 화면 달력 ── */
+/* ── 날짜별 카드 (달력 셀을 눌렀을 때) ── */
 const mcache={};
-const shiftKey=(k,n)=>{const[y,m]=k.split("-").map(Number);const d=new Date(y,m-1+n,1);
-  return d.getFullYear()+"-"+pad(d.getMonth()+1);};
-async function monthTxs(k){
-  if(k===ym)return txs;
-  if(mcache[k])return mcache[k];
-  const doc=await load("months/"+k);
-  mcache[k]=(doc&&doc.txs)||[];
-  return mcache[k];
-}
-let calYm=null,calSel=null;
-function openCal(){
-  calYm=ym;
-  calSel=(todayISO().slice(0,7)===ym)?todayISO():null;
-  buildCal();$("calScreen").classList.add("open");lockScroll(true);
-}
-function calSummary(list){
-  const t=totals(list||[]),net=t.i-t.e-t.s;
-  const c=document.createElement("div");c.className="card";
-  c.innerHTML='<div class="stats">'+
-    '<div><span>수입</span><b class="tnum blue">'+fmt(t.i)+'</b></div>'+
-    '<div><span>지출</span><b class="tnum red">'+fmt(t.e)+'</b></div>'+
-    '<div><span>저축</span><b class="tnum green">'+fmt(t.s)+'</b></div></div>'+
-    '<div class="row"><span class="t">차액</span>'+
-    '<span class="val tnum" style="font-weight:600;color:var('+(net<0?"--red":"--label")+')">'+fmt(net)+'원</span></div>';
-  return c;
-}
 function dayCard(list,sel,onPick){
   const day=(list||[]).filter(t=>t.d===sel),t=totals(day);
   const dt=new Date(sel+"T00:00:00");
@@ -2227,69 +2201,6 @@ function dayCard(list,sel,onPick){
   if(!day.length)c.insertAdjacentHTML("beforeend",'<p class="empty" style="padding:20px 16px">이 날은 기록이 없습니다.</p>');
   return c;
 }
-function fillPanel(p,k,list){
-  p.innerHTML="";
-  p.appendChild(calCard(k,list||[],iso=>{calSel=iso;fillPanel(p,k,list);},calSel));
-  if(calSel&&calSel.slice(0,7)===k)
-    p.appendChild(dayCard(list,calSel,id=>{calYm=k;applyCal().then(()=>openSheet(id));}));
-  p.appendChild(calSummary(list));
-}
-function buildCal(){
-  const tr=$("calTrack");
-  tr.style.transition="none";tr.style.transform="translateX(-33.3333%)";
-  tr.innerHTML="";
-  [shiftKey(calYm,-1),calYm,shiftKey(calYm,1)].forEach(k=>{
-    const p=document.createElement("div");p.className="calpanel";p.dataset.k=k;
-    const known=(k===ym)?txs:mcache[k];
-    fillPanel(p,k,known||[]);
-    tr.appendChild(p);
-    if(!known)monthTxs(k).then(listv=>{
-      const cur=tr.querySelector('.calpanel[data-k="'+k+'"]');
-      if(cur)fillPanel(cur,k,listv);
-    });
-  });
-  $("calTitle").textContent=calYm.split("-")[0]+"년 "+Number(calYm.split("-")[1])+"월";
-}
-function applyCal(){
-  $("calScreen").classList.remove("open");
-  if(calYm&&calYm!==ym){ym=calYm;return loadMonth().then(render);}
-  return Promise.resolve();
-}
-$("ym").addEventListener("click",openCal);
-$("calClose").addEventListener("click",()=>{applyCal().then(()=>lockScroll(false));});
-$("calToday").addEventListener("click",()=>{calYm=todayISO().slice(0,7);buildCal();});
-(function(){
-  const vp=$("calView"),tr=$("calTrack");
-  let x0=0,y0=0,dx=0,active=false,lock=null,w=0;
-  const setX=px=>{tr.style.transform="translateX(calc(-33.3333% + "+px+"px))";};
-  vp.addEventListener("pointerdown",e=>{
-    active=true;lock=null;dx=0;x0=e.clientX;y0=e.clientY;w=vp.clientWidth;
-    tr.style.transition="none";
-  });
-  vp.addEventListener("pointermove",e=>{
-    if(!active)return;
-    const ax=e.clientX-x0,ay=e.clientY-y0;
-    if(lock===null&&(Math.abs(ax)>8||Math.abs(ay)>8))lock=Math.abs(ax)>Math.abs(ay)?"x":"y";
-    if(lock!=="x")return;
-    dx=ax;setX(dx);
-  });
-  function end(){
-    if(!active)return;active=false;
-    if(lock!=="x")return;
-    const th=Math.min(80,w*.22);
-    const dir=dx<-th?1:dx>th?-1:0;
-    tr.style.transition="transform .32s cubic-bezier(.32,.72,0,1)";
-    setX(dir?-dir*w:0);
-    if(dir){
-      const done=()=>{tr.removeEventListener("transitionend",done);calYm=shiftKey(calYm,dir);buildCal();};
-      tr.addEventListener("transitionend",done);
-    }
-  }
-  vp.addEventListener("pointerup",end);
-  vp.addEventListener("pointercancel",end);
-  vp.addEventListener("pointerleave",end);
-})();
-
 /* ── 결제 알림 자동 감지 (안드로이드 앱에서만) ── */
 const hasBridge=()=>!!(window.Android&&window.Android.takePending);
 /* 알림이 감지돼서 대기열에 쌓이는 게 기본 동작이다. 그대로 굴러갈 때는 화면에
@@ -2408,6 +2319,54 @@ $("dgScan").addEventListener("click",()=>{
   const n=pullNow();renderDiag();
   toast(n?"결제 "+n+"건을 가져왔습니다":"새로 가져올 결제가 없습니다");
 });
+
+/* ── 달 선택 휠 ── 위쪽 "2026년 9월" 을 누르면 년·월 휠을 스크롤해 고른다 (사용자 요청, 2026-09-24).
+   전체 화면 달력은 없앴다. 항목을 눌러도 고를 수 있어 스크롤 계산이 없는 환경(테스트)에서도 동작한다. */
+const WH=36;
+function wheelFill(el,items,idx){
+  el.innerHTML=items.map((t,i)=>'<div data-i="'+i+'"'+(i===idx?' class="on"':'')+'>'+t+'</div>').join("");
+  el.scrollTop=idx*WH;
+}
+const wheelIdx=el=>Math.max(0,Math.min(el.children.length-1,Math.round(el.scrollTop/WH)));
+const wheelMark=(el,i)=>{Array.from(el.children).forEach((c,j)=>c.classList.toggle("on",j===i));};
+const wheelPicked=el=>{const on=el.querySelector(".on");return on?Number(on.dataset.i):wheelIdx(el);};
+let wheelYears=[];
+function openYm(){
+  const[y,m]=ym.split("-").map(Number),cy=new Date().getFullYear();
+  let minY=Math.min(y,cy-5);
+  Object.keys(summary).forEach(k=>{minY=Math.min(minY,Number(k.slice(0,4)));});
+  wheelYears=[];for(let yy=minY;yy<=Math.max(y,cy)+1;yy++)wheelYears.push(yy);
+  wheelFill($("wYear"),wheelYears.map(v=>v+"년"),wheelYears.indexOf(y));
+  wheelFill($("wMonth"),Array.from({length:12},(_,i)=>(i+1)+"월"),m-1);
+  $("ymSheet").classList.add("open");scrim.classList.add("open");lockScroll(true);
+}
+["wYear","wMonth"].forEach(id=>{
+  const el=$(id);let raf=0;
+  el.addEventListener("scroll",()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>wheelMark(el,wheelIdx(el)));},{passive:true});
+  el.addEventListener("click",e=>{
+    const c=e.target.closest("[data-i]");if(!c)return;
+    const i=Number(c.dataset.i);wheelMark(el,i);
+    try{el.scrollTo({top:i*WH,behavior:"smooth"});}catch(err){el.scrollTop=i*WH;}
+  });
+});
+function goYm(key){
+  closeSheet();
+  if(key===ym)return;
+  ym=key;loadMonth().then(render);
+}
+$("ym").addEventListener("click",openYm);
+$("ymCancel").addEventListener("click",closeSheet);
+$("ymOk").addEventListener("click",()=>goYm(wheelYears[wheelPicked($("wYear"))]+"-"+pad(wheelPicked($("wMonth"))+1)));
+$("ymToday").addEventListener("click",()=>goYm(todayISO().slice(0,7)));
+/* 네이티브 뒤로가기(MainActivity.BACK_JS)가 onPageFinished 에서 window.__back 을 덮어쓴다. setter 로
+   가로채 두면 네이티브 목록에 없는 시트(달 선택)도 새 APK 없이 뒤로가기로 닫힌다. */
+let nativeBack=null;
+Object.defineProperty(window,"__back",{configurable:true,
+  get(){return function(){
+    if($("ymSheet").classList.contains("open")){closeSheet();return true;}
+    return nativeBack?nativeBack():false;
+  };},
+  set(v){nativeBack=v;}});
 
 /* ── 월 이동 ── */
 function shift(n){

@@ -48,17 +48,22 @@ module.exports = async function () {
   assert(envCards()[0].querySelector(".out").textContent === "800,000원", "고정지출 40% → 800,000원 — 실제: " + envCards()[0].querySelector(".out").textContent);
   /* 고정지출을 30% 로 줄인 뒤, 생활비(25%)를 원 모드로 바꿔 600,000 기입 → 30% */
   const fixed = envCards()[0];
-  fixed.querySelector(".vin").value = "30"; fixed.querySelector(".vin").dispatchEvent(new w.Event("input")); await wait(10);
+  fixed.querySelector(".vpct").value = "30"; fixed.querySelector(".vpct").dispatchEvent(new w.Event("input")); await wait(10);
   assert(fixed.querySelector(".out").textContent === "600,000원", "30% → 600,000원 — 실제: " + fixed.querySelector(".out").textContent);
   const life = envCards()[1];
   life.querySelector('[data-m="amt"]').click(); await wait(10);
-  assert(num(life.querySelector(".vin").value) === 500000, "원 모드로 바꾸면 25% → 500,000원 — 실제: " + life.querySelector(".vin").value);
-  life.querySelector(".vin").value = "600000"; life.querySelector(".vin").dispatchEvent(new w.Event("input")); await wait(10);
+  assert(!life.querySelector(".vamt").hidden && life.querySelector(".vpct").hidden, "원 모드면 원 칸만 보여야 함");
+  assert(num(life.querySelector(".vamt").value) === 500000, "원 모드로 바꾸면 25% → 500,000원 — 실제: " + life.querySelector(".vamt").value);
+  life.querySelector(".vamt").value = "600000"; life.querySelector(".vamt").dispatchEvent(new w.Event("input")); await wait(10);
   assert(life.querySelector(".out").textContent === "30%", "600,000원 → 30% — 실제: " + life.querySelector(".out").textContent);
   assert(/아직 안 나눈 돈/.test($("restLbl").textContent) && /5%/.test($("restVal").textContent), "30+30+25+10=95 → 남은 5% — 실제: " + $("restVal").textContent);
   /* 100% 넘게 기입하면 남은 몫까지만 */
-  fixed.querySelector(".vin").value = "90"; fixed.querySelector(".vin").dispatchEvent(new w.Event("input")); await wait(10);
-  assert(fixed.querySelector(".vin").value === "35%", "남은 몫(35%)까지만 — 실제: " + fixed.querySelector(".vin").value);
+  fixed.querySelector(".vpct").value = "90"; fixed.querySelector(".vpct").dispatchEvent(new w.Event("input")); await wait(10);
+  assert(fixed.querySelector(".vpct").value === "35%", "남은 몫(35%)까지만 — 실제: " + fixed.querySelector(".vpct").value);
+  /* 소수점 비율은 그대로 읽힌다 (33.3% 가 333 이 되면 안 됨) */
+  fixed.querySelector(".vpct").value = "33.3%"; fixed.querySelector(".vpct").dispatchEvent(new w.Event("input")); await wait(10);
+  assert(fixed.querySelector(".vpct").value === "33.3%", "33.3% 유지 — 실제: " + fixed.querySelector(".vpct").value);
+  fixed.querySelector(".vpct").value = "35"; fixed.querySelector(".vpct").dispatchEvent(new w.Event("input")); await wait(10);
   assert(/모두 나눴습니다/.test($("restLbl").textContent), "합계 100% 면 모두 나눴습니다");
   /* 생활비 봉투 금액이 곧 총 예산 (버튼 없이 자동) */
   assert(/생활비.*600,000원.*총 예산/.test($("pbNote").textContent), "안내: 생활비 600,000 이 총 예산 — 실제: " + $("pbNote").textContent);
@@ -118,6 +123,9 @@ module.exports = async function () {
   assert(!$("ymSheet").classList.contains("open"), "완료 후 시트가 닫혀야 함");
   assert($("ym").textContent === prevY + "년 " + prevM + "월", "지난달로 바뀌어야 함 — 실제: " + $("ym").textContent);
   assert($("todayRow").style.display === "none", "지난달 화면엔 오늘 카드가 없어야 함");
+  d.querySelector('[data-tab="budget"]').click(); await wait(20);
+  assert(num($("btVal").textContent) === 600000, "지난달을 봐도 총 예산은 그대로 600,000 — 실제: " + $("btVal").textContent);
+  d.querySelector('[data-tab="tx"]').click(); await wait(20);
   $("ym").click(); await wait(30);
   assert(w.__back() === true && !$("ymSheet").classList.contains("open"), "뒤로가기로 달 선택 시트가 닫혀야 함");
   $("ym").click(); await wait(30);
@@ -140,6 +148,8 @@ module.exports = async function () {
   assert(rows() === total, "검색을 지우면 전체 — 실제: " + rows());
   $("txCatSel").value = "식비"; $("txCatSel").dispatchEvent(new w.Event("change")); await wait(20);
   assert(rows() === total, "기본 카테고리(식비)로 저장됐으니 전부 보여야 함 — 실제: " + rows());
+  $("prev").click(); await wait(80); $("next").click(); await wait(80);
+  assert($("txCatSel").value === "" && rows() === total, "달을 갔다 오면 없던 카테고리 필터는 풀려야 함 — 실제: " + $("txCatSel").value + "/" + rows());
 
   /* 통계: 일별·히트맵·요일별 */
   d.querySelector('[data-tab="stat"]').click(); await wait(30);
@@ -201,6 +211,7 @@ module.exports = async function () {
   b.$("themeBtn").click(); await wait(20);
   b.$("fontSeg").querySelector('[data-v="1.2"]').click();
   assert(b.d.documentElement.style.zoom === "1.2", "더 크게 → zoom 1.2 — 실제: " + b.d.documentElement.style.zoom);
+  assert(b.d.documentElement.style.getPropertyValue("--zoom") === "1.2", "인셋 보정용 --zoom 도 같이");
   assert(b.w.localStorage.getItem("gb:fontScale") === "1.2", "글씨 크기가 저장돼야 함");
   b.$("fontSeg").querySelector('[data-v="1"]').click();
   assert(b.d.documentElement.style.zoom === "" && !b.w.localStorage.getItem("gb:fontScale"), "기본으로 돌리면 저장값 삭제");

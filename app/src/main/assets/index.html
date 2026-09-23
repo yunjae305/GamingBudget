@@ -60,7 +60,7 @@ button{background:none;border:none;padding:0;cursor:pointer}
 /* ── 내비게이션 바 ── */
 .nav{
   position:sticky;top:0;z-index:40;
-  padding-top:var(--sat);
+  padding-top:calc(var(--sat) / var(--zoom, 1));
   background:var(--navbg);
   -webkit-backdrop-filter:saturate(180%) blur(20px);
   backdrop-filter:saturate(180%) blur(20px);
@@ -77,7 +77,7 @@ button{background:none;border:none;padding:0;cursor:pointer}
 .nav .appearance:active{background:var(--fill)}
 /* h1 기본 여백(위아래 0.67em ≈ 20px)을 지운다 — 안 지우면 제목과 내용 사이가 34px 로 벌어진다 */
 
-main{padding-top:10px;padding-bottom:calc(72px + var(--sab))}
+main{padding-top:10px;padding-bottom:calc(72px + calc(var(--sab) / var(--zoom, 1)))}
 .hdr{font-size:13px;color:var(--label2);padding:0 32px 6px;letter-spacing:-.005em}
 .card{background:var(--group);border-radius:var(--r);margin:0 16px 22px;overflow:hidden}
 .card.pad{padding:16px}
@@ -235,13 +235,13 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
   transition:transform .35s cubic-bezier(.32,.72,0,1),visibility .35s;
 }
 .screen.open{transform:translateY(0);visibility:visible}
-.screennav{padding-top:var(--sat);background:var(--navbg);
+.screennav{padding-top:calc(var(--sat) / var(--zoom, 1));background:var(--navbg);
   -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-bottom:.5px solid var(--sep);flex:none}
 .screennav .inner{height:52px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 16px}
 .screennav button{font-size:17px;color:var(--blue)}
 .screennav .ttl{font-size:17px;font-weight:600}
 .screenbody{flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:18px}
-.screenfoot{flex:none;padding:10px 16px calc(10px + var(--sab));
+.screenfoot{flex:none;padding:10px 16px calc(10px + calc(var(--sab) / var(--zoom, 1)));
   background:var(--navbg);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-top:.5px solid var(--sep)}
 .swbtn{padding:7px;margin:-7px;display:flex;align-items:center;flex:none}
 .colorrow{display:flex;flex-wrap:wrap;gap:13px;padding:14px 16px;box-shadow:inset 0 .5px 0 var(--sep)}
@@ -258,7 +258,7 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .tabbar{
   position:fixed;left:0;right:0;bottom:0;z-index:45;display:flex;
   background:var(--navbg);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
-  border-top:.5px solid var(--sep);padding-bottom:var(--sab);
+  border-top:.5px solid var(--sep);padding-bottom:calc(var(--sab) / var(--zoom, 1));
 }
 .tabbar button{flex:1;padding:7px 0 5px;color:var(--label2);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9.5px;letter-spacing:-.02em}
 .tabbar button[aria-selected=true]{color:var(--blue)}
@@ -302,7 +302,7 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
   position:fixed;left:0;right:0;bottom:0;z-index:51;background:var(--bg);
   border-radius:14px 14px 0 0;max-height:92vh;overflow:auto;
   transform:translateY(102%);transition:transform .38s cubic-bezier(.32,.72,0,1);
-  padding-bottom:calc(20px + var(--sab));
+  padding-bottom:calc(20px + calc(var(--sab) / var(--zoom, 1)));
 }
 .sheet.open{transform:translateY(0)}
 .grabber{width:36px;height:5px;border-radius:3px;background:var(--label3);margin:6px auto 0}
@@ -334,7 +334,7 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .recamt b{display:block;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
 .recamt s{font-size:12px;color:var(--label3);font-variant-numeric:tabular-nums}
 .recamt em{font-style:normal;font-size:12px;color:var(--green);font-weight:600;margin-left:4px}
-.qfab{position:fixed;right:16px;bottom:calc(70px + var(--sab));z-index:46;
+.qfab{position:fixed;right:16px;bottom:calc(70px + calc(var(--sab) / var(--zoom, 1)));z-index:46;
   width:58px;height:58px;border-radius:19px;display:none;align-items:center;justify-content:center;
   background:linear-gradient(140deg,var(--purple),var(--indigo));color:#fff;
   box-shadow:0 8px 22px rgba(88,86,214,.38);transition:transform .15s}
@@ -344,8 +344,8 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .qbadge{position:absolute;top:-6px;right:-6px;min-width:23px;height:23px;padding:0 6px;border-radius:12px;
   background:var(--red);color:#fff;font-size:12.5px;font-weight:700;line-height:23px;text-align:center;
   box-shadow:0 0 0 2.5px var(--bg);display:none;font-variant-numeric:tabular-nums}
-body.txpad main{padding-bottom:calc(150px + var(--sab))}
-.toast{position:fixed;left:50%;bottom:calc(88px + var(--sab));transform:translateX(-50%) translateY(8px);
+body.txpad main{padding-bottom:calc(150px + calc(var(--sab) / var(--zoom, 1)))}
+.toast{position:fixed;left:50%;bottom:calc(88px + calc(var(--sab) / var(--zoom, 1)));transform:translateX(-50%) translateY(8px);
   background:rgba(0,0,0,.82);color:#fff;font-size:14px;padding:9px 16px;border-radius:20px;opacity:0;
   transition:opacity .25s,transform .25s;pointer-events:none;z-index:60;max-width:88%;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -593,7 +593,8 @@ const CATS={
   saving:["정기예금","적금","투자","비상금"]
 };
 const PAL=["--blue","--orange","--green","--purple","--pink","--teal","--indigo","--brown","--yellow","--red"];
-const fmt=n=>new Intl.NumberFormat("ko-KR").format(Math.round(n||0));
+const NF=new Intl.NumberFormat("ko-KR");  /* 렌더마다 수백 번 부르니 포매터는 한 번만 만든다 */
+const fmt=n=>NF.format(Math.round(n||0));
 const parseN=s=>{const n=parseInt(String(s).replace(/[^0-9]/g,""),10);return isNaN(n)?0:n;};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const pad=n=>String(n).padStart(2,"0");
@@ -727,7 +728,6 @@ $("bkOk").addEventListener("click",()=>{
 const saveCfg=()=>save("config/main",cfg);
 function saveMonth(){
   save("months/"+ym,{txs});
-  delete mcache[ym];
   const t=totals();summary[ym]={i:t.i,e:t.e,s:t.s};
   save("index/summary",{months:summary});
 }
@@ -738,7 +738,6 @@ function totals(list){
   L.forEach(t=>{r[t.type==="income"?"i":t.type==="saving"?"s":"e"]+=t.amount;});
   return r;
 }
-const byDay=()=>{const m={};txs.forEach(t=>{(m[t.d]=m[t.d]||[]).push(t);});return m;};
 function catTotals(type){
   const m={};txs.filter(t=>t.type===type).forEach(t=>{m[t.cat]=(m[t.cat]||0)+t.amount;});
   return Object.entries(m).sort((a,b)=>b[1]-a[1]);
@@ -835,6 +834,7 @@ function renderTx(){
   else{
     /* 검색·카테고리 필터 (목록 보기에서만). 입력 중에는 목록만 갈아 끼워 커서를 유지한다. */
     const cats=Array.from(new Set(txs.map(x=>x.cat))).sort();
+    if(txCat&&!cats.includes(txCat))txCat="";  /* 달을 바꿔 그 카테고리가 없으면 필터 해제 (안 보이는 필터가 남지 않게) */
     body.innerHTML='<div class="searchbar"><input type="search" id="txQ" placeholder="검색 (메모·카테고리)" autocomplete="off" value="'+esc(txQ)+'">'+
       '<select id="txCatSel" aria-label="카테고리"><option value="">전체</option>'+cats.map(c=>'<option'+(c===txCat?" selected":"")+'>'+esc(c)+'</option>').join("")+'</select></div>'+
       '<div id="txList"></div>';
@@ -1146,7 +1146,7 @@ function renderStat(){
   for(let d=1;d<=n;d++){
     const v=dayv[d-1],r=v/mxd,iso=ym+"-"+pad(d);
     const cls="heat"+(v?(r>.6?" hot":" on"):"")+(iso===tdISO?" today":"");
-    const st=v?' style="background:color-mix(in srgb,var(--red) '+Math.round(18+r*82)+'%,var(--fill))"':'';
+    const st=v?' style="background:rgba(255,59,48,'+(0.18+r*0.82).toFixed(2)+')"':'';
     heat+='<div class="'+cls+'"'+st+' title="'+fmt(v)+'원">'+d+'</div>';
   }
   h+=hdr("지출 히트맵")+card(heat+'</div><p class="note" style="margin:0;padding:8px 16px 14px">진할수록 많이 쓴 날입니다.</p>');
@@ -1236,12 +1236,14 @@ function renderAsset(){
 /* ── 배분 ── 실수령액을 봉투에 나눈다. 봉투마다 "%" 또는 "원" 을 골라 숫자만 기입하면 바로 막대에 반영된다
    (사용자 결정, 2026-09-24: 슬라이더 없음, 기입식). 합계는 100% 이내 — 넘치는 입력은 남은 몫까지만 받는다(§6).
    고른 봉투(기본: 생활비)를 예산 탭의 총 예산으로 보내는 버튼이 있다. 저축 목표는 자산 탭으로 옮겼다. */
-const planBase=()=>cfg.plan.income||totals().i||0;
+/* 실수령액을 비워 두면 "오늘이 속한 달" 의 수입 합계를 쓴다 — 보는 달(ym)에 따라 총 예산이 바뀌면 안 되니까 */
+const thisMonthIncome=()=>{const k=todayISO().slice(0,7);return k===ym?totals().i:((summary[k]&&summary[k].i)||0);};
+const planBase=()=>cfg.plan.income||thisMonthIncome()||0;
 const envPct=e=>e.mode==="amt"?(planBase()?Math.min(100,(e.amt||0)/planBase()*100):0):(e.pct||0);
 const envAmt=e=>e.mode==="amt"?(e.amt||0):planBase()*(e.pct||0)/100;
 /* 총 예산 = 생활비 봉투 금액 (사용자 결정, 2026-09-24: 예산과 생활비는 같은 것). 봉투가 없거나 실수령액이
    없으면 예산 탭에서 직접 적은 값을 쓴다. 바뀌었으면 cfg.budget.total 에 써서 알림(mirror.json)도 같은 숫자를 본다. */
-function budgetEnv(){const P=cfg.plan;return P.envelopes.find(e=>e.id===P.budgetEnv)||P.envelopes.find(e=>/생활/.test(e.name||""))||null;}
+function budgetEnv(){return cfg.plan.envelopes.find(e=>/생활/.test(e.name||""))||null;}
 function syncBudgetFromPlan(){
   const be=budgetEnv(),m=be?Math.round(envAmt(be)):0;
   if(m>0&&cfg.budget.total!==m){cfg.budget.total=m;saveCfg();}
@@ -1251,10 +1253,9 @@ function renderPlan(){
   const v=view(),P=cfg.plan;
   const sumPct=()=>P.envelopes.reduce((a,e)=>a+envPct(e),0);
   const colorOf=(e,i)=>e.color||PAL[i%PAL.length];
-  const budgetEnv=()=>P.envelopes.find(e=>e.id===P.budgetEnv)||P.envelopes.find(e=>/생활/.test(e.name))||P.envelopes[0];
   v.innerHTML=hdr("실수령액")+
-    card('<div class="row"><span class="t">이번 달 실수령액</span><input id="pi" type="text" inputmode="numeric" placeholder="'+(totals().i?fmt(totals().i)+"원":"0")+'" value="'+moneyStr(P.income)+'"></div>')+
-    '<p class="note">비워 두면 이번 달 수입 기록 합계를 씁니다.</p>'+
+    card('<div class="row"><span class="t">이번 달 실수령액</span><input id="pi" type="text" inputmode="numeric" placeholder="'+(thisMonthIncome()?fmt(thisMonthIncome())+"원":"0")+'" value="'+moneyStr(P.income)+'"></div>')+
+    '<p class="note">비워 두면 이번 달(오늘이 속한 달) 수입 기록 합계를 씁니다.</p>'+
     hdr("나눈 결과")+
     card('<div style="padding:14px 16px"><div id="sb" style="display:flex;height:32px;border-radius:8px;overflow:hidden"></div>'+
       '<div style="display:flex;justify-content:space-between;margin-top:10px;font-size:15px" class="tnum">'+
@@ -1279,7 +1280,7 @@ function renderPlan(){
     else if(rest>0.05){lbl.textContent="아직 안 나눈 돈";lbl.style.color="var(--label)";val.textContent=fmt(planBase()*rest/100)+"원 · "+(Math.round(rest*10)/10)+"%";}
     else{lbl.textContent="모두 나눴습니다";lbl.style.color="var(--label)";val.textContent="0원";}
     const be=budgetEnv();syncBudgetFromPlan();
-    $("pbNote").textContent=be?('"'+(be.name||"생활비")+'" 봉투 금액'+(planBase()?"("+fmt(envAmt(be))+"원)":"")+'이 예산 탭의 이번 달 총 예산이 됩니다.'):"이름에 '생활' 이 들어간 봉투 금액이 예산 탭의 총 예산이 됩니다.";
+    $("pbNote").textContent=be?('"'+be.name+'" 봉투 금액'+(planBase()?"("+fmt(envAmt(be))+"원)":"")+'이 예산 탭의 이번 달 총 예산이 됩니다.'):"이름에 '생활' 이 들어간 봉투가 없습니다. 봉투 이름에 '생활' 을 넣으면 그 금액이 예산 탭의 총 예산이 됩니다.";
   }
   const envs=$("envs");
   if(!P.envelopes.length)envs.innerHTML=card('<p class="empty">봉투를 추가해 실수령액을 나눠 보세요.</p>');
@@ -1292,10 +1293,11 @@ function renderPlan(){
       '<div class="colorrow" hidden>'+PAL.map(p=>'<button data-c="'+p+'" class="'+(p===colorOf(e,i)?"on":"")+
         '" style="background:var('+p+')" aria-label="색"></button>').join("")+'</div>'+
       '<div class="row"><div class="seg mini"><button data-m="pct">%</button><button data-m="amt">원</button></div>'+
-        '<input class="vin" type="text" inputmode="numeric" placeholder="0" aria-label="배분"></div>'+
+        '<input class="vpct" type="text" inputmode="decimal" placeholder="0%" aria-label="비율">'+
+        '<input class="vamt" type="text" inputmode="numeric" placeholder="0" aria-label="금액" hidden></div>'+
       '<div class="row"><span class="t">저축으로 계산</span><label class="sw"><input type="checkbox"'+(e.saving?" checked":"")+'><span></span></label></div>'+
       '<button class="row tap delrow" style="width:100%;text-align:left"><span class="t red">봉투 삭제</span></button>';
-    const nm=c.querySelector(".nm"),out=c.querySelector(".out"),vin=c.querySelector(".vin"),seg=c.querySelector(".seg"),
+    const nm=c.querySelector(".nm"),out=c.querySelector(".out"),vpct=c.querySelector(".vpct"),vamt=c.querySelector(".vamt"),seg=c.querySelector(".seg"),
       ck=c.querySelector("input[type=checkbox]"),del=c.querySelector(".delrow"),
       swbtn=c.querySelector(".swbtn"),swdot=c.querySelector(".swatch"),crow=c.querySelector(".colorrow");
     swbtn.addEventListener("click",()=>{crow.hidden=!crow.hidden;});
@@ -1304,33 +1306,34 @@ function renderPlan(){
       crow.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
       crow.hidden=true;paint();saveCfg();
     }));
-    /* 기입 칸: % 모드면 숫자+%, 원 모드면 금액. 반대쪽 값은 오른쪽 위에 보여 준다. */
+    /* 기입 칸: % 칸과 원 칸을 따로 두고 모드에 맞는 것만 보인다(원 칸은 bindMoney). 반대쪽 값은 오른쪽 위에. */
     const showOut=()=>{out.textContent=e.mode==="amt"?(planBase()?(Math.round(envPct(e)*10)/10)+"%":"실수령액 필요"):(planBase()?fmt(envAmt(e))+"원":"");};
     const fillIn=()=>{
       seg.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.m===e.mode));
-      vin.value=e.mode==="amt"?moneyStr(e.amt):(e.pct?(Math.round(e.pct*10)/10)+"%":"");
+      vpct.hidden=e.mode==="amt";vamt.hidden=e.mode!=="amt";
+      vpct.value=e.pct?(Math.round(e.pct*10)/10)+"%":"";
+      vamt.value=moneyStr(e.amt);
       showOut();
     };
     const others=()=>sumPct()-envPct(e);
+    const room=()=>Math.max(0,100-others());
     seg.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
       if(e.mode===b.dataset.m)return;
       /* 모드를 바꾸면 지금 값을 반대쪽 단위로 옮겨 둔다 */
       if(b.dataset.m==="amt")e.amt=Math.round(envAmt(e));else e.pct=Math.round(envPct(e)*10)/10;
       e.mode=b.dataset.m;fillIn();saveCfg();
     }));
-    vin.addEventListener("input",()=>{
-      const room=Math.max(0,100-others());
-      if(e.mode==="amt"){
-        let v=parseN(vin.value);
-        if(planBase()){const cap=Math.floor(planBase()*room/100);if(v>cap){v=cap;toast("남은 몫까지만 나눌 수 있습니다");}}
-        e.amt=v;vin.value=moneyStr(v);
-      }else{
-        let v=Math.min(100,parseN(vin.value));
-        if(v>room){v=Math.floor(room*10)/10;toast("남은 몫까지만 나눌 수 있습니다");}
-        e.pct=v;vin.value=v?v+"%":"";
-      }
-      try{const q=Math.max(0,vin.value.length-1);vin.setSelectionRange(q,q);}catch(err){}
+    vpct.addEventListener("input",()=>{
+      /* 소수점 한 자리까지 (33.3%). parseN 은 점을 지우니 쓰지 않는다 */
+      let v=parseFloat(String(vpct.value).replace(/[^0-9.]/g,""));v=isNaN(v)?0:Math.min(100,Math.round(v*10)/10);
+      if(v>room()){v=Math.floor(room()*10)/10;toast("남은 몫까지만 나눌 수 있습니다");}
+      e.pct=v;vpct.value=v?v+"%":"";
+      try{const q=Math.max(0,vpct.value.length-1);vpct.setSelectionRange(q,q);}catch(err){}
       showOut();paint();saveCfg();
+    });
+    bindMoney(vamt,v=>{
+      if(planBase()){const cap=Math.floor(planBase()*room()/100);if(v>cap){v=cap;vamt.value=moneyStr(v);toast("남은 몫까지만 나눌 수 있습니다");}}
+      e.amt=v;showOut();paint();saveCfg();
     });
     nm.addEventListener("input",()=>{e.name=nm.value;saveCfg();paint();});
     ck.addEventListener("change",()=>{e.saving=ck.checked;saveCfg();});
@@ -1409,6 +1412,7 @@ function currentScale(){try{const v=parseFloat(localStorage.getItem("gb:fontScal
 function applyScale(v){
   v=[0.9,1,1.1,1.2].includes(v)?v:1;
   document.documentElement.style.zoom=v===1?"":String(v);
+  document.documentElement.style.setProperty("--zoom",String(v));
   try{v===1?localStorage.removeItem("gb:fontScale"):localStorage.setItem("gb:fontScale",String(v));}catch(e){}
   $("fontSeg").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",parseFloat(b.dataset.v)===v));
 }
@@ -1507,7 +1511,6 @@ function commit(rec){
   if(target===ym){txs.push(rec);saveMonth();}
   else load("months/"+target).then(doc=>{
     const list=(doc&&doc.txs)||[];list.push(rec);save("months/"+target,{txs:list});
-    delete mcache[target];
     const t=totals(list);summary[target]={i:t.i,e:t.e,s:t.s};save("index/summary",{months:summary});
   });
 }
@@ -1546,11 +1549,14 @@ const saveInbox=()=>save("inbox/pending",{items:inbox});
 /* 결제 알림 원문 → 대기열 항목. 카드사·은행·페이마다 형식이 달라서 규칙을 느슨하게 둔다.
    실제 문구 예시는 tests/parser.test.js 에 모아 두었다 — 새 형식을 만나면 거기에 먼저 넣을 것. */
 /* 결제가 아닌 알림: 취소·실패·거절, 예정·청구 안내, 광고. 하나라도 있으면 통째로 버린다. */
-const SKIPWORD=/취소|실패|거절|거부|미승인|예정|청구|명세서|이용대금|이용금액|\(광고\)|광고\)|수신거부|쿠폰|이벤트/;
+const SKIPWORD=/취소|실패|거절|거부|미승인|(결제|출금|납부|이체|청구)\s*예정|청구|명세서|이용대금|이용금액|\(광고\)|광고\)|수신거부|쿠폰|이벤트/;  /* "적립예정" 같은 각주는 안 걸리게 예정은 결제·출금 쪽만 */
 /* 결제 금액이 아닌 숫자: 앞뒤에 이런 말이 붙은 "○○원" 은 건너뛴다 (잔액 1,203,000원 / 129원 캐시백) */
 const NOTAMT_BEFORE=/잔액|누적|한도|포인트|적립|가능|할인|수수료|남은|캐시백|리워드/;
-const NOTAMT_AFTER=/^\s*(캐시백|적립|할인|포인트|리워드|페이백|돌려|을 받|를 받)/;
+const NOTAMT_AFTER=/^\s*(을|를|이|가|은|는)?\s*(캐시백|적립|할인|포인트|리워드|페이백|돌려|받)/;
+/* 가맹점 줄에서 뺄 줄 */
 const REWARDLINE=/캐시백|적립|리워드|페이백|포인트/;
+/* 금액을 통째로 의심할 줄 — 캐시백 안내 문장만. "M포인트 120P 적립예정" 같은 카드 문자 각주는 결제 금액을 살려야 한다 */
+const CASHBACKLINE=/캐시백|페이백|리워드/;
 /* 결제 금액. 캐시백·잔액 같은 숫자밖에 없으면 0 — 그 알림은 수치를 믿을 수 없으니 버린다.
    캐시백 얘기가 있는 줄에서는 바로 뒤에 "결제/승인" 이 붙은 금액만 결제 금액으로 본다
    ("12,900원의 129원을 캐시백으로" 는 안 되고 "12,000원 결제 · 36원 캐시백" 은 된다). */
@@ -1561,7 +1567,7 @@ function payAmount(raw){
     if(NOTAMT_BEFORE.test(before)||NOTAMT_AFTER.test(after))continue;
     const ls=raw.lastIndexOf("\n",m.index)+1,le=raw.indexOf("\n",m.index);
     const line=raw.slice(ls,le<0?raw.length:le);
-    if(REWARDLINE.test(line)&&!/^\s*(결제|승인)/.test(after))continue;
+    if(CASHBACKLINE.test(line)&&!/^\s*(결제|승인)/.test(after))continue;
     return parseN(m[1]);
   }
   return 0;
@@ -1621,6 +1627,7 @@ function parseOne(raw){
 function cleanMerchant(m){
   return String(m||"")
     .replace(/(누적|잔액|남은|할부|일시불|승인|결제|이용|출금|사용)[^\n]*$/,"")
+    .replace(/\s*(M?포인트|적립|캐시백|리워드)[^\n]*$/,"")   /* "M포인트 120P 적립예정" 같은 각주 */
     .replace(/에서$|에서\s.*$/,"")
     .replace(/\d{6}-\*+[\d*-]*/g,"")   /* 430502-**-**** 같은 가려진 번호 */
     .replace(/\(?(일시불|체크|신용|국내|해외)\)?/g,"")
@@ -1732,7 +1739,7 @@ async function scanReceipt(file){
   const text=parts&&parts[0]&&parts[0].text;
   let out=null;try{out=JSON.parse(text);}catch(e){}
   if(!out)throw new Error("응답 형식이 올바르지 않습니다.");
-  const amount=parseN(out.amount);
+  const amount=Math.round(Number(String(out.amount==null?"":out.amount).replace(/[^0-9.]/g,"")))||0;
   if(!amount)return null;
   const merchant=cleanMerchant(String(out.merchant||"")).slice(0,24)||"영수증";
   const d=/^\d{4}-\d{2}-\d{2}$/.test(String(out.date||""))&&String(out.date)<=todayISO()?String(out.date):todayISO();
@@ -2214,7 +2221,6 @@ function chooseGame(cb){
 }
 
 /* ── 날짜별 카드 (달력 셀을 눌렀을 때) ── */
-const mcache={};
 function dayCard(list,sel,onPick){
   const day=(list||[]).filter(t=>t.d===sel),t=totals(day);
   const dt=new Date(sel+"T00:00:00");
@@ -2457,7 +2463,6 @@ async function loadMonth(){
       cfg.plan.income=c.plan.income||0;
       if(Array.isArray(c.plan.envelopes)&&c.plan.envelopes.length)cfg.plan.envelopes=c.plan.envelopes;
       cfg.plan.goal=Object.assign({name:"",target:0,base:0},c.plan.goal||{});
-      if(c.plan.budgetEnv)cfg.plan.budgetEnv=c.plan.budgetEnv;
     }
   }
   const idx=await load("index/summary");

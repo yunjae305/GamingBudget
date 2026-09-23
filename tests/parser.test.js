@@ -25,6 +25,7 @@ const CASES = [
   { pkg: "viva.republica.toss", text: "129원 캐시백 🎉\n토스뱅크 카드 결제 금액의 1%를 돌려받았어요", want: null },
   { pkg: "viva.republica.toss", text: "토스\n어제 결제한 12,900원의 129원을 캐시백으로 받았어요", want: null },
   { pkg: "viva.republica.toss", text: "36원 캐시백 🎉\nSK텔레콤에서 12,000원 결제했어요", want: { name: "SK텔레콤", amt: 12000 } },
+  { pkg: "com.samsung.android.messaging", text: "[Web발신]\n[현대카드] 승인 12,000원 일시불 09/22 14:03 스타벅스 M포인트 120P 적립예정", want: { name: "스타벅스", amt: 12000 } },
   { pkg: "com.samsung.android.messaging", text: "[Web발신]\n[대신저축은행] 입금 250,000원 김*재 430502-**-****** 잔액 1,250,000원", want: { name: "대신저축은행 김*재", amt: 250000, type: "income" } },
 ];
 

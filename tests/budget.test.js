@@ -61,6 +61,24 @@ module.exports = async function () {
   d.querySelector('[data-tab="tx"]').click(); await wait(20);
   assert($("todayRow").style.display !== "none", "내역 탭에는 오늘 카드가 보여야 함");
 
+  /* 달 선택 휠: 위쪽 "년 월" → 휠에서 고르고 완료 → 그 달 화면 */
+  $("ym").click(); await wait(30);
+  assert($("ymSheet").classList.contains("open"), "년월을 누르면 달 선택 시트");
+  assert($("wYear").querySelector(".on") && $("wMonth").querySelector(".on").textContent === (now.getMonth() + 1) + "월", "현재 달이 선택돼 있어야 함");
+  const prevM = now.getMonth() === 0 ? 12 : now.getMonth(), prevY = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  [...$("wYear").children].find((c) => c.textContent === prevY + "년").click();
+  [...$("wMonth").children].find((c) => c.textContent === prevM + "월").click();
+  $("ymOk").click(); await wait(80);
+  assert(!$("ymSheet").classList.contains("open"), "완료 후 시트가 닫혀야 함");
+  assert($("ym").textContent === prevY + "년 " + prevM + "월", "지난달로 바뀌어야 함 — 실제: " + $("ym").textContent);
+  assert($("todayRow").style.display === "none", "지난달 화면엔 오늘 카드가 없어야 함");
+  $("ym").click(); await wait(30);
+  assert(w.__back() === true && !$("ymSheet").classList.contains("open"), "뒤로가기로 달 선택 시트가 닫혀야 함");
+  $("ym").click(); await wait(30);
+  $("ymToday").click(); await wait(80);
+  assert($("ym").textContent === now.getFullYear() + "년 " + (now.getMonth() + 1) + "월", "'이번 달' 로 돌아와야 함");
+  assert(!$("calScreen"), "전체 화면 달력은 없어야 함");
+
   /* 내역 목록 검색·필터 */
   d.querySelector('[data-tab="tx"]').click(); await wait(20);
   d.querySelector('#mode [data-m="list"]').click(); await wait(20);

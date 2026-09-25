@@ -163,6 +163,13 @@ module.exports = async function () {
   d.querySelector('[data-tab="tx"]').click(); await wait(20);
   $("qfab").click(); await wait(30);
   assert($("ibScan"), "대기열 화면에 영수증 스캔 버튼");
+  $("ibScan").click(); await wait(20);
+  assert($("rcAlert").classList.contains("open") && $("rcCamBtn") && $("rcPickBtn"), "카메라/앨범 선택 팝업");
+  assert(w.__back() === true && !$("rcAlert").classList.contains("open"), "뒤로가기로 팝업이 닫혀야 함");
+  $("ibScan").click(); await wait(20);
+  $("rcPickBtn").click(); await wait(20);
+  assert(!$("rcAlert").classList.contains("open"), "앨범을 고르면 팝업이 닫힘");
+  assert($("rcCam").getAttribute("capture") === "environment", "카메라 입력은 capture=environment");
 
   let sent = null;
   w.fetch = async (url, opts) => {

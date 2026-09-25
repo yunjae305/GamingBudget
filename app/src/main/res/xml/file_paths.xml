@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 영수증 촬영 임시 파일 (MainActivity.launchCamera). 하루 지나면 지운다. -->
+<paths>
+    <cache-path name="receipts" path="receipts/" />
+</paths>

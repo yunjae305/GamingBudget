@@ -427,6 +427,7 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <button class="btn" id="ibSave" style="flex:1.4">일괄 저장</button>
   </div>
   <input type="file" id="rcFile" accept="image/*" multiple hidden>
+  <input type="file" id="rcCam" accept="image/*" capture="environment" hidden>
 </div>
 
 <div class="sheet" id="gSheet" role="dialog" aria-label="결제 기록">
@@ -564,6 +565,16 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <div class="atitle">백업을 가져올까요?</div>
     <div class="amsg" id="bkAlertMsg"></div>
     <div class="abtns"><button id="bkCancel">취소</button><button id="bkOk" style="color:var(--red)">덮어쓰기</button></div>
+  </div>
+</div>
+
+<div class="alertwrap" id="rcAlert" role="dialog" aria-label="영수증 스캔">
+  <div class="alert">
+    <div class="atitle">영수증 스캔</div>
+    <div class="amsg">사진을 Gemini 가 읽어 금액·가게·날짜를 대기열에 넣습니다.</div>
+    <button class="gcbtn" id="rcCamBtn">카메라로 찍기</button>
+    <button class="gcbtn" id="rcPickBtn">앨범에서 고르기</button>
+    <button class="gcbtn cancel" id="rcCancel">취소</button>
   </div>
 </div>
 
@@ -1746,13 +1757,20 @@ async function scanReceipt(file){
   return {id:uid(),amount,d,merchant,type:"expense",cat:guessCat(merchant),sel:true,src:"receipt"};
 }
 let scanning=false;
+/* 카메라로 찍기 / 앨범에서 고르기 (사용자 요청, 2026-09-25). 카메라는 capture 속성 → 네이티브 onShowFileChooser 가
+   isCaptureEnabled() 를 보고 카메라 앱을 띄운다(FileProvider). 브라우저 미리보기에선 그냥 파일 선택 창. */
 $("ibScan").addEventListener("click",()=>{
   if(scanning)return;
   if(!aiKey()){toast(noKeyMsg);return;}
-  $("rcFile").value="";$("rcFile").click();
+  $("rcAlert").classList.add("open");
 });
-$("rcFile").addEventListener("change",async()=>{
-  const files=Array.from($("rcFile").files||[]);if(!files.length)return;
+$("rcCancel").addEventListener("click",()=>$("rcAlert").classList.remove("open"));
+$("rcCamBtn").addEventListener("click",()=>{$("rcAlert").classList.remove("open");$("rcCam").value="";$("rcCam").click();});
+$("rcPickBtn").addEventListener("click",()=>{$("rcAlert").classList.remove("open");$("rcFile").value="";$("rcFile").click();});
+$("rcCam").addEventListener("change",()=>scanFiles(Array.from($("rcCam").files||[])));
+$("rcFile").addEventListener("change",()=>scanFiles(Array.from($("rcFile").files||[])));
+async function scanFiles(files){
+  if(!files.length)return;
   scanning=true;$("ibScan").disabled=true;$("ibScan").textContent="읽는 중…";
   let ok=0,fail=0,err=null;
   for(const f of files){
@@ -1762,7 +1780,7 @@ $("rcFile").addEventListener("change",async()=>{
   scanning=false;$("ibScan").disabled=false;$("ibScan").textContent="영수증 스캔";
   if(ok){saveInbox();renderInbox();render();}
   toast(ok?ok+"장을 읽었습니다"+(fail?" · "+fail+"장은 못 읽음":""):(err||"영수증을 읽지 못했습니다"));
-});
+}
 
 /* ── 게임 소비 ── */
 const gAmt=g=>(g.price!=null?g.price*(g.qty==null?1:g.qty):(g.amount||0));
@@ -2409,6 +2427,7 @@ let nativeBack=null;
 Object.defineProperty(window,"__back",{configurable:true,
   get(){return function(){
     if($("ymSheet").classList.contains("open")){closeSheet();return true;}
+    if($("rcAlert").classList.contains("open")){$("rcAlert").classList.remove("open");return true;}
     return nativeBack?nativeBack():false;
   };},
   set(v){nativeBack=v;}});

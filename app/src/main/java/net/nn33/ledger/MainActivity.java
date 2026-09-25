@@ -97,6 +97,42 @@ public class MainActivity extends AppCompatActivity {
             if (web != null) web.evaluateJavascript("window.__savedFile&&window.__savedFile(" + ok + ")", null);
         });
 
+    /** 영수증 촬영 — <input capture> 가 오면 카메라 앱을 띄운다. 사진은 cache/receipts/ 에 FileProvider 로 쓴다.
+     *  CAMERA 권한은 선언하지 않는다(ACTION_IMAGE_CAPTURE 는 권한 없이 되고, 선언하면 오히려 런타임 권한이 필요해진다). */
+    private Uri cameraUri;
+    private final ActivityResultLauncher<Uri> takePicture =
+        registerForActivityResult(new ActivityResultContracts.TakePicture(), ok -> {
+            if (filePicker == null) return;
+            filePicker.onReceiveValue(ok && cameraUri != null ? new Uri[]{cameraUri} : null);
+            filePicker = null;
+            cameraUri = null;
+        });
+
+    private boolean launchCamera() {
+        try {
+            File dir = new File(getCacheDir(), "receipts");
+            if (!dir.exists() && !dir.mkdirs()) return false;
+            File f = new File(dir, "receipt-" + System.currentTimeMillis() + ".jpg");
+            cameraUri = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".files", f);
+            takePicture.launch(cameraUri);
+            return true;
+        } catch (Exception e) {
+            cameraUri = null;
+            return false;
+        }
+    }
+
+    /** 찍어 둔 영수증 임시 파일은 하루 지나면 지운다 (화면이 읽은 뒤에는 필요 없다) */
+    private void sweepReceipts() {
+        try {
+            File[] fs = new File(getCacheDir(), "receipts").listFiles();
+            if (fs == null) return;
+            long cut = System.currentTimeMillis() - 24L * 3600 * 1000;
+            for (File f : fs) if (f.lastModified() < cut) f.delete();
+        } catch (Exception ignored) {
+        }
+    }
+
     /** 하루 예산 알림 권한(안드로이드 13+). 결과는 화면의 __notifPerm(granted) 로 돌려준다. */
     private final ActivityResultLauncher<String> askNotif =
         registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
@@ -109,7 +145,7 @@ public class MainActivity extends AppCompatActivity {
         "var m=[['notifAlert','naCancel'],['bkAlert','bkCancel'],['grpAlert','grpCancel'],['gameChoose','gcCancel']," +
         "['diagScreen','dgClose']," +
         "['sheet','fCancel'],['gSheet','gCancel'],['pSheet','pCancel'],['themeSheet','tDone']," +
-        "['pickScreen','pkClose'],['ymSheet','ymCancel']," +
+        "['pickScreen','pkClose'],['ymSheet','ymCancel'],['rcAlert','rcCancel']," +
         "['gDetail','gdClose'],['inboxSheet','ibClose']];" +
         "for(var i=0;i<m.length;i++){var el=document.getElementById(m[i][0]);" +
         "if(el&&el.classList.contains('open')){var b=document.getElementById(m[i][1]);" +
@@ -200,6 +236,8 @@ public class MainActivity extends AppCompatActivity {
                                              FileChooserParams params) {
                 if (filePicker != null) filePicker.onReceiveValue(null);
                 filePicker = cb;
+                // <input capture="environment"> 면 카메라. 못 띄우면 파일 선택으로 넘어간다.
+                if (params.isCaptureEnabled() && launchCamera()) return true;
                 try {
                     pickFiles.launch(params.createIntent());
                 } catch (Exception e) {
@@ -227,6 +265,7 @@ public class MainActivity extends AppCompatActivity {
         if (BuildConfig.REMOTE_UPDATE) checkForUpdate();
         // 앱 업데이트 등으로 알람이 사라졌을 수 있으니 켜져 있던 하루 예산 알림을 다시 건다
         Reminders.schedule(this);
+        sweepReceipts();
     }
 
     /** 페이지의 안전 영역 변수(--sat/--sab)에 실측 인셋을 넣는다 */

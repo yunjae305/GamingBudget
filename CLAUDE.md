@@ -67,7 +67,7 @@ ledger/
 
 뒤로가기: `MainActivity.BACK_JS`의 `[오버레이 id, 닫기 버튼 id]` 목록을 위에서부터 검사해 열린 것을 닫는다. **새 시트/전체화면을 추가하면 이 목록에도 넣어야 한다.** 다만 페이지가 `window.__back` 을 `Object.defineProperty` setter 로 가로채 두어(달 선택 휠 근처), 네이티브가 덮어쓴 함수를 `nativeBack` 에 받아 두고 자기 오버레이를 먼저 닫는다 — APK 를 못 바꿀 때 임시로 쓰는 길이고, 정식은 BACK_JS 목록이다.
 
-`WebChromeClient.onShowFileChooser`(파일 선택)는 백업 파일 가져오기(`<input type="file">`)에 쓴다.
+`WebChromeClient.onShowFileChooser`(파일 선택)는 백업 파일 가져오기·영수증 앨범 선택에 쓰고, `<input capture>` 면 카메라 앱을 띄운다(`launchCamera`).
 
 `PayListener` 필터: 금액(`○○원`) + 결제 단어(승인/결제/사용/출금/입금/이체/체크카드/신용카드)가 같이 있어야 하고, 광고/수신거부/쿠폰/이벤트와 결제 예정·청구·명세서 안내는 버린다. 상주 알림(`isOngoing`, 잔액 표시 같은 것)과 그룹 요약도 뺀다. 화면 쪽 `parseOne` 이 더 엄격하게 한 번 더 거른다 — `SKIPWORD`(취소·실패·거절·거부·미승인·결제/출금/납부 예정·청구·광고 — "적립예정" 같은 각주는 안 걸리게 예정은 결제 쪽만)가 있으면 통째로 버리고, 금액은 `payAmount()` 가 고른다: 앞뒤에 잔액·누적·캐시백·적립·포인트가 붙은 "○○원" 은 건너뛰고, 캐시백·페이백·리워드 안내 문장(`CASHBACKLINE`)에서는 바로 뒤에 "결제/승인" 이 붙은 금액만 인정한다(적립·포인트 각주가 붙은 카드 문자는 살린다). 결제 금액이 하나도 안 남으면 버린다(**수치를 정확히 못 읽는 알림은 대기열에 넣지 않는다** — 사용자 결정, 2026-09-23, §6). 버린 이유는 `dropReason()` 이 진단 화면에 남긴다. SMS 권한은 쓰지 않는다 — 문자도 메시지 앱 알림으로 읽는다.
 
@@ -115,7 +115,7 @@ ledger/
 카테고리 도넛·주별·6개월 외에 **일별 지출**(막대 `.bars.dense`, 가장 많이 쓴 날·하루 평균), **지출 히트맵**(`.heatgrid`, `rgba` 로 진하기 — 옛 WebView 에 `color-mix` 가 없어서, 오늘은 파란 테두리), **요일별 평균 지출**(지난 날들의 요일별 평균, 가장 많이 쓰는 요일).
 
 ### 영수증 스캔 (`#ibScan`, 결제 대기열 화면)
-사진을 골라(`#rcFile`, 여러 장) `scanReceipt()` 가 Gemini `generateContent` 에 `inlineData` 로 보내 `{amount,merchant,date}` JSON 을 받고 대기열에 `src:"receipt"` 로 넣는다. 캔버스로 1280px 로 줄여 JPEG 로 보내고, 캔버스를 못 쓰면 원본. 키는 통계 탭 AI 와 같은 `aiKey()`. 키가 없으면 설정 시트를 열고 닫으면 대기열로 돌아온다(`backToInbox`). **개별 거래 이미지가 Google 로 나가는 유일한 기능** — 설정 안내문과 PRIVACY.md 에 적혀 있다.
+버튼을 누르면 `#rcAlert` 팝업에서 **카메라로 찍기**(`#rcCam`, `capture="environment"`) 또는 **앨범에서 고르기**(`#rcFile`, 여러 장)를 고른다(2026-09-25). 카메라는 네이티브 `onShowFileChooser` 가 `isCaptureEnabled()` 를 보고 `TakePicture` 로 카메라 앱을 띄우고, 사진은 `cache/receipts/` 에 FileProvider(`${applicationId}.files`, `res/xml/file_paths.xml`)로 쓴다. CAMERA 권한은 선언하지 않는다(선언하면 런타임 권한이 필요해진다). 임시 파일은 앱 시작 때 하루 지난 것을 지운다. 이후 `scanFiles()` → `scanReceipt()` 가 Gemini `generateContent` 에 `inlineData` 로 보내 `{amount,merchant,date}` JSON 을 받고 대기열에 `src:"receipt"` 로 넣는다. 캔버스로 1280px 로 줄여 JPEG 로 보내고, 캔버스를 못 쓰면 원본. 키는 통계 탭 AI 와 같은 `aiKey()`. 키가 없는 빌드면 토스트만. **개별 거래 이미지가 Google 로 나가는 유일한 기능** — 설정 안내문과 PRIVACY.md 에 적혀 있다.
 
 ### 데이터 모양
 - 가계부 내역 `tx`: `{id,d:"YYYY-MM-DD",type:"income"|"expense"|"saving",amount,cat,memo}`

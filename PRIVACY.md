@@ -46,6 +46,14 @@
 - 읽어 온 금액·가게·날짜는 결제 대기열에 들어가며, 사진 자체는 앱이 저장하지 않습니다.
 - 전송된 사진의 처리 방식은 Google 의 정책을 따릅니다.
 
+## 게임 탭 과금 상담 (선택 기능)
+
+게임 탭의 캐릭터 카드에서 질문을 보내면, 질문과 함께 **이번 달 게임 결제 기록(게임·상품명·금액·날짜), 게임별 합계와 한도, 최근 몇 달의 게임 지출 합계, 앱에 있는 상품 가격표, 이번 달 가계부 합계 숫자**가 Google 의 Gemini API 로 전송되어 답변을 받습니다.
+
+- 사용자가 질문을 보낼 때만 전송됩니다. 가계부의 일반 지출 내역(가게 이름·메모)은 보내지 않습니다.
+- 대화는 기기 안에 최근 30개까지 저장되며 "지우기"로 지울 수 있습니다.
+- 전송된 내용의 처리 방식은 Google 의 정책을 따릅니다.
+
 ## 하루 예산 알림 (선택 기능)
 
 설정에서 켜면 아침에 "오늘 쓸 수 있는 돈", 저녁에 "오늘 남은 돈"을 기기 알림으로 보여 줍니다. 이 계산은 기기 안의 기록만으로 이루어지며, 어떤 데이터도 밖으로 나가지 않습니다. 안드로이드 13 이상에서는 알림 권한을 요청하고, 재부팅 후 알림을 다시 예약하기 위해 부팅 완료 신호를 받습니다.
@@ -80,6 +88,8 @@ This app has **no server**. Everything you enter, every payment notification it 
 **Optional AI spending advice** (Stats tab): only when you tap "생성하기", the app sends only aggregate numbers (totals, per-category sums, budget usage) directly from your device to Google's Gemini API using a key bundled in the app — never merchant names or individual transaction memos.
 
 **Optional receipt scan**: only when you tap "영수증 스캔" and pick photos, those photos are sent directly to Google's Gemini API to read the amount, merchant and date. The app does not store the photos.
+
+**Optional game spending chat** (Game tab): only when you send a question, the question plus this month's game purchase records (game, item, amount, date), limits, recent monthly game totals and the in-app price list are sent to Google's Gemini API for an answer. General ledger entries (merchant names, memos) are never sent.
 
 **Optional daily-budget reminders** are computed on-device and post local notifications only; nothing leaves the device.
 

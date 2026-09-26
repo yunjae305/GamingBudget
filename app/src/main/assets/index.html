@@ -184,6 +184,17 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .wheel div.on{color:var(--label);font-weight:600}
 .seg.mini{margin:0;width:104px;flex:none}
 .seg.mini button{padding:5px 0;font-size:13px}
+/* 과금 상담 채팅 */
+.chat{padding:12px 16px 4px;display:flex;flex-direction:column}
+.msg{max-width:84%;margin:5px 0;padding:10px 14px;border-radius:18px;font-size:15px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.msg.me{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:6px}
+.msg.ai{align-self:flex-start;background:var(--group);border-bottom-left-radius:6px}
+.msg.sys{align-self:center;background:transparent;color:var(--label2);font-size:13px;text-align:center}
+.chatin{display:flex;gap:8px;align-items:center}
+.chatin input{flex:1;min-width:0;height:40px;border-radius:20px;background:var(--fill);padding:0 14px;font-size:15px;color:var(--label)}
+.chatin input::placeholder{color:var(--label3)}
+.chatin button{width:40px;height:40px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.chatin button[disabled]{opacity:.4}
 .bignum{padding:14px 16px 6px}
 .bignum small{display:block;font-size:13px;color:var(--label2);margin-bottom:2px}
 .bignum b{display:block;font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1.15}
@@ -474,6 +485,19 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
   </div></div>
   <div class="screenbody"><div id="dgBody"></div></div>
   <div class="screenfoot"><button class="btn" id="dgScan">지금 다시 확인</button></div>
+</div>
+
+<div class="screen" id="gameChatScreen" role="dialog" aria-label="과금 상담">
+  <div class="screennav"><div class="inner">
+    <button id="chatClose">닫기</button>
+    <span class="ttl" id="chatTitle">과금 상담</span>
+    <button id="chatClear" style="color:var(--red)">지우기</button>
+  </div></div>
+  <div class="screenbody"><div class="chat" id="chatBody"></div></div>
+  <div class="screenfoot chatin">
+    <input type="text" id="chatIn" placeholder="예: 이번 달 월정액 더 사도 될까?" autocomplete="off" enterkeyhint="send">
+    <button id="chatSend" aria-label="보내기"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  </div>
 </div>
 
 <div class="screen" id="gDetail" role="dialog" aria-label="게임 상세">
@@ -1880,11 +1904,17 @@ function renderGame(){
     esc(x[2])+(x[3]?'<span class="sub"> · '+x[3]+'</span>':'')+'</span></div>').join(""):
     '<p class="empty">'+(G.month||G.daily?"경고 없음. 한도 안에서 쓰고 있습니다.":"한도를 정하면 경고가 표시됩니다.")+'</p>';
 
-  v.innerHTML=card(hero)+card(stats)+
+  v.innerHTML=card(hero)+
+    '<div class="card aiCard"><div class="aiPortrait"><img src="/assets/img/character.png" alt="" onerror="this.style.display=\'none\'"></div>'+
+      '<div class="aiBubble"><p style="font-weight:600">'+esc(aiName())+'</p><p style="color:var(--label2)">과금 계획이 고민되면 물어보세요. 이번 달 게임 지출과 한도를 보고 답해 드려요.</p>'+
+      '<button class="btn tint" id="gchatBtn" style="height:40px;font-size:14px;width:auto;padding:0 16px;display:inline-block">'+esc(aiName())+'에게 물어보기</button></div></div>'+
+    card(stats)+
     hdr("소비 경고")+card(warnCard)+
     hdr("게임별")+'<div id="glist"></div>'+
     hdr("한도 설정")+'<div id="gguard"></div>'+
     hdr("최근 6개월")+'<div id="gtrend"></div>';
+
+  $("gchatBtn").addEventListener("click",openGameChat);
 
   /* 게임별 */
   const host=$("glist");
@@ -1943,6 +1973,87 @@ function renderGame(){
     rows.map(r=>'<div class="row"><span class="t">'+Number(r.k.slice(5))+'월</span>'+
       '<span class="val tnum">'+fmt(r.v)+'원</span></div>').join(""));
 }
+/* ── 게임 과금 상담 (AI 채팅, 사용자 요청 2026-09-26) ──
+   게임 탭 캐릭터 카드에서 연다. 질문마다 이번 달 게임 지출·한도·결제 기록·상품 가격표를 데이터로 붙여
+   Gemini 에 보낸다. 통계 탭 AI 와 달리 게임 결제 기록(게임·상품명·금액·날짜)이 나간다 — §6 예외, PRIVACY.md.
+   대화는 gb:ai/gchat 에 최근 30개까지 남긴다(백업 포함). */
+let gchat=[],chatBusy=false;
+function gchatLoad(){try{gchat=JSON.parse(localStorage.getItem("gb:ai/gchat")||"[]");if(!Array.isArray(gchat))gchat=[];}catch(e){gchat=[];}}
+function gchatSave(){try{localStorage.setItem("gb:ai/gchat",JSON.stringify(gchat.slice(-30)));}catch(e){}}
+function gameContext(){
+  const G=cfg.gameGuard||{month:0,daily:0,perGame:{}},total=gTotal(games);
+  const byGame={};games.forEach(g=>{(byGame[g.game||"이름 없음"]=byGame[g.game||"이름 없음"]||[]).push(g);});
+  const names=Array.from(new Set([...(cfg.gameNames||[]),...Object.keys(byGame)]));
+  const L=[];
+  L.push(ym+" 게임 지출 합계 "+fmt(total)+"원, 결제 "+games.length+"회.");
+  L.push("월 총 한도: "+(G.month?fmt(G.month)+"원 (남은 "+fmt(G.month-total)+"원)":"없음")+", 하루 지출 경고: "+(G.daily?fmt(G.daily)+"원":"없음"));
+  L.push("게임별 이번 달: "+(names.length?names.map(n=>n+" "+fmt(gTotal(byGame[n]||[]))+"원"+(G.perGame[n]?"(한도 "+fmt(G.perGame[n])+"원)":"")).join(", "):"없음"));
+  const recent=games.slice().sort((a,b)=>b.d.localeCompare(a.d)).slice(0,30);
+  L.push("이번 달 결제 기록: "+(recent.length?recent.map(g=>g.d.slice(5)+" "+(g.game||"")+" "+gLabel(g)+" "+fmt(gAmt(g))+"원").join(" / "):"없음"));
+  const[yy,mm]=ym.split("-").map(Number),hist=[];
+  for(let i=5;i>=1;i--){const d=new Date(yy,mm-1-i,1),k=d.getFullYear()+"-"+pad(d.getMonth()+1);hist.push((d.getMonth()+1)+"월 "+fmt(gsum[k]||0)+"원");}
+  L.push("지난 5개월 게임 지출: "+hist.join(", "));
+  const price=names.map(n=>{
+    const items=[...(CATALOG[n]||[]).map(it=>({n:it.d?it.n+"("+it.d+")":it.n,g:it.g,p:it.p})),
+      ...((cfg.gameProducts||{})[n]||[]).map(it=>({n:it.name,g:it.grp,p:it.price}))].slice(0,40);
+    return items.length?n+": "+items.map(it=>it.n+" "+fmt(it.p)+"원["+it.g+"]").join(", "):"";
+  }).filter(Boolean);
+  if(price.length)L.push("상품 가격표(정가): "+price.join(" | "));
+  const t=totals();
+  L.push("참고 — 가계부 "+ym+": 수입 "+fmt(t.i)+"원, 지출 "+fmt(t.e)+"원(게임 기록은 별도), 저축 "+fmt(t.s)+"원, 월 예산 "+(cfg.budget.total?fmt(cfg.budget.total)+"원":"없음"));
+  return L.join("\n");
+}
+function renderChat(){
+  const body=$("chatBody");
+  let h="";
+  if(!gchat.length)h+='<div class="msg ai">'+esc(aiName())+'예요. 이번 달 게임 지출과 한도를 보고 있어요. 과금 계획, 뭐가 고민이에요?</div>';
+  gchat.forEach(m=>{h+='<div class="msg '+(m.role==="user"?"me":"ai")+'">'+esc(m.text)+'</div>';});
+  if(chatBusy)h+='<div class="msg ai" id="chatWait">생각하는 중…</div>';
+  body.innerHTML=h;
+  const sb=body.parentElement;sb.scrollTop=sb.scrollHeight;
+}
+function openGameChat(){
+  if(!aiKey()){toast(noKeyMsg);return;}
+  gchatLoad();$("chatTitle").textContent=aiName()+" · 과금 상담";renderChat();
+  $("gameChatScreen").classList.add("open");lockScroll(true);
+  setTimeout(()=>{try{$("chatIn").focus();}catch(e){}},380);
+}
+function closeGameChat(){$("gameChatScreen").classList.remove("open");lockScroll(false);}
+async function sendChat(){
+  const inp=$("chatIn"),q=inp.value.trim();
+  if(!q||chatBusy)return;
+  const key=aiKey();if(!key){toast(noKeyMsg);return;}
+  gchat.push({role:"user",text:q});gchatSave();inp.value="";
+  chatBusy=true;$("chatSend").disabled=true;renderChat();
+  try{
+    const url="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(aiModel())+":generateContent?key="+encodeURIComponent(key);
+    const body={
+      systemInstruction:{parts:[{text:aiPersona()+" 너는 사용자의 게임 과금 계획 상담역이야. 아래 데이터를 근거로 3~6문장으로 짧고 구체적으로 답해. "+
+        "먼저 한도·이번 달 지출 대비 상황을 짚고, 금액은 원 단위 숫자로 말해. 무리한 과금을 부추기지 말고, 데이터에 없는 게임 정보는 아는 척하지 마. 항상 존댓말.\n\n[데이터]\n"+gameContext()}]},
+      contents:gchat.slice(-20).map(m=>({role:m.role==="user"?"user":"model",parts:[{text:m.text}]})),
+      generationConfig:{temperature:0.8,maxOutputTokens:700}
+    };
+    const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){
+      if(res.status===400||res.status===403)throw new Error("API 키를 확인해 주세요.");
+      if(res.status===429)throw new Error("요청이 너무 많습니다. 잠시 후 다시 시도하세요.");
+      throw new Error("요청에 실패했습니다 ("+res.status+").");
+    }
+    const json=await res.json();
+    const parts=json&&json.candidates&&json.candidates[0]&&json.candidates[0].content&&json.candidates[0].content.parts;
+    const text=(parts||[]).map(p=>p.text||"").join("").trim();
+    if(!text)throw new Error("응답을 읽지 못했습니다.");
+    gchat.push({role:"model",text:text.slice(0,1500)});gchatSave();
+  }catch(e){
+    gchat.push({role:"model",text:"죄송해요, 답을 못 가져왔어요. "+String((e&&e.message)||e)});
+  }
+  chatBusy=false;$("chatSend").disabled=false;renderChat();
+}
+$("chatClose").addEventListener("click",closeGameChat);
+$("chatSend").addEventListener("click",sendChat);
+$("chatIn").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();sendChat();}});
+$("chatClear").addEventListener("click",()=>{gchat=[];gchatSave();renderChat();});
+
 /* ── 고정 상품 목록 ── */
 const CATALOG={"명조":[
   {g:"월정액",n:"달빛 관측 카드",p:5900},
@@ -2428,6 +2539,7 @@ Object.defineProperty(window,"__back",{configurable:true,
   get(){return function(){
     if($("ymSheet").classList.contains("open")){closeSheet();return true;}
     if($("rcAlert").classList.contains("open")){$("rcAlert").classList.remove("open");return true;}
+    if($("gameChatScreen").classList.contains("open")){closeGameChat();return true;}
     return nativeBack?nativeBack():false;
   };},
   set(v){nativeBack=v;}});

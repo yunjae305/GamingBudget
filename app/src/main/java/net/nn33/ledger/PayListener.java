@@ -16,7 +16,8 @@ import java.util.regex.Pattern;
  */
 public class PayListener extends NotificationListenerService {
 
-    private static final Pattern AMOUNT = Pattern.compile("[0-9][0-9,]{2,}\\s*원");
+    /** "151,600원" 또는 "₩151,600"(삼성 월렛은 ₩ 앞머리를 쓴다 — 2026-09-26 실기기 확인) */
+    private static final Pattern AMOUNT = Pattern.compile("[0-9][0-9,]{2,}\\s*원|₩\\s*[0-9][0-9,]{2,}");
     private static final Pattern PAYWORD = Pattern.compile("승인|결제|사용|출금|입금|이체|체크카드|신용카드");
     /** 광고·청구서·예정 안내처럼 실제 결제가 아닌 것 */
     private static final Pattern NOISE = Pattern.compile(

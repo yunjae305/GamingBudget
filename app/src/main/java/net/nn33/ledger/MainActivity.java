@@ -143,7 +143,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String BACK_JS =
         "window.__back=function(){" +
         "var m=[['notifAlert','naCancel'],['bkAlert','bkCancel'],['grpAlert','grpCancel'],['gameChoose','gcCancel']," +
-        "['diagScreen','dgClose'],['gameChatScreen','chatClose']," +
+        "['diagScreen','dgClose'],['chatPicAlert','chatPicCancel'],['gameChatScreen','chatClose']," +
         "['sheet','fCancel'],['gSheet','gCancel'],['pSheet','pCancel'],['themeSheet','tDone']," +
         "['pickScreen','pkClose'],['ymSheet','ymCancel'],['rcAlert','rcCancel']," +
         "['gDetail','gdClose'],['inboxSheet','ibClose']];" +

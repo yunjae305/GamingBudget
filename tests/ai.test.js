@@ -92,9 +92,25 @@ module.exports = async function () {
   $("chatIn").value = "그럼 패스는?"; $("chatSend").click(); await wait(60);
   assert(sent2.body.contents.length === 3 && sent2.body.contents[1].role === "model", "두 번째 질문은 앞 대화까지 같이 — 실제: " + sent2.body.contents.length);
   assert(w.localStorage.getItem("gb:ai/gchat") && JSON.parse(w.localStorage.getItem("gb:ai/gchat")).length === 4, "대화가 저장돼야 함");
+  /* 사진 첨부: 앨범에서 고르면 미리보기가 뜨고, 보낼 때 inlineData 로 같이 간다. 다음 질문엔 사진이 다시 가지 않는다 */
+  $("chatPic").click(); await wait(10);
+  assert($("chatPicAlert").classList.contains("open"), "사진 첨부 팝업");
+  $("chatPickBtn").click(); await wait(10);
+  const pic = new w.File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], "shop.jpg", { type: "image/jpeg" });
+  Object.defineProperty($("chatFile"), "files", { value: [pic], configurable: true });
+  $("chatFile").dispatchEvent(new w.Event("change")); await wait(120);
+  assert(!$("chatPend").hidden, "첨부 대기 미리보기가 보여야 함");
+  $("chatIn").value = "이 패키지 살 만해?"; $("chatSend").click(); await wait(80);
+  const last = sent2.body.contents[sent2.body.contents.length - 1];
+  assert(last.parts.some((p) => p.inlineData && p.inlineData.data) && /살 만해/.test(last.parts[last.parts.length - 1].text), "사진과 질문이 같이 가야 함");
+  assert($("chatPend").hidden, "보낸 뒤 대기 미리보기는 사라짐");
+  assert(d.querySelector("#chatBody .msg.me img"), "내 말풍선에 사진이 보여야 함");
+  $("chatIn").value = "그럼 다음 달은?"; $("chatSend").click(); await wait(80);
+  const prevUser = sent2.body.contents[sent2.body.contents.length - 3];
+  assert(!prevUser.parts.some((p) => p.inlineData) && /사진 첨부했었음/.test(prevUser.parts[0].text), "지난 사진은 다시 안 보내고 표시만");
   assert(w.__back() === true && !$("gameChatScreen").classList.contains("open"), "뒤로가기로 닫힘");
   $("gchatBtn").click(); await wait(30);
-  assert(d.querySelectorAll("#chatBody .msg.me").length === 2, "다시 열면 대화가 남아 있어야 함");
+  assert(d.querySelectorAll("#chatBody .msg.me").length === 4, "다시 열면 대화가 남아 있어야 함");
   $("chatClear").click(); await wait(10);
   assert(d.querySelectorAll("#chatBody .msg.me").length === 0, "지우기로 비워짐");
   $("chatClose").click();

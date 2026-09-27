@@ -81,11 +81,14 @@ module.exports = async function () {
     return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: "월정액 하나 정도는 한도 안이에요." }] } }] }) };
   };
   $("chatIn").value = "이번 달 월정액 사도 돼?";
+  $("chatIn").dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", keyCode: 229 }));
+  await wait(30);
+  assert(sent2 === null, "한글 조합 중 Enter(keyCode 229)는 보내지 않아야 함");
   $("chatIn").dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter" }));
   await wait(60);
   assert(sent2 && sent2.url.includes("builtin-key-xyz"), "내장 키로 호출");
   const sys = sent2.body.systemInstruction.parts[0].text;
-  assert(/게임 지출 합계/.test(sys) && /월 총 한도/.test(sys) && /상품 가격표/.test(sys), "게임 지출·한도·가격표 데이터가 붙어야 함");
+  assert(/이번 달\(\d{4}-\d{2}\) 게임 지출 합계/.test(sys) && /월 총 한도/.test(sys) && /상품 가격표/.test(sys), "게임 지출·한도·가격표 데이터가 붙어야 함");
   assert(sent2.body.contents.length === 1 && sent2.body.contents[0].role === "user", "첫 질문은 contents 1개");
   assert(/월정액 하나 정도는/.test($("chatBody").textContent), "답변 말풍선 — 실제: " + $("chatBody").textContent);
   assert(d.querySelectorAll("#chatBody .msg.me").length === 1 && $("chatIn").value === "", "내 말풍선 1개, 입력칸 비움");
@@ -111,8 +114,33 @@ module.exports = async function () {
   assert(w.__back() === true && !$("gameChatScreen").classList.contains("open"), "뒤로가기로 닫힘");
   $("gchatBtn").click(); await wait(30);
   assert(d.querySelectorAll("#chatBody .msg.me").length === 4, "다시 열면 대화가 남아 있어야 함");
+  /* 요청 실패는 말풍선으로만 보여 주고 기록·다음 요청엔 안 들어간다 */
+  w.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+  $("chatIn").value = "실패 테스트"; $("chatSend").click(); await wait(80);
+  assert(d.querySelector("#chatBody .msg.sys") && /답을 못 가져왔어요/.test($("chatBody").textContent), "오류 말풍선");
+  assert(!JSON.parse(w.localStorage.getItem("gb:ai/gchat")).some((m) => /못 가져왔어요/.test(m.text)), "오류는 저장되면 안 됨");
+  let sent3 = null;
+  w.fetch = async (url, opts) => { sent3 = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: "네" }] } }] }) }; };
+  $("chatIn").value = "다시"; $("chatSend").click(); await wait(80);
+  assert(!sent3.contents.some((c) => c.role === "model" && /못 가져왔어요/.test(c.parts[0].text)), "오류 문구가 대화로 전송되면 안 됨");
   $("chatClear").click(); await wait(10);
   assert(d.querySelectorAll("#chatBody .msg.me").length === 0, "지우기로 비워짐");
   $("chatClose").click();
+
+  /* 카메라 앱에서 돌아올 때 앱이 죽었다 살아난 경우: 네이티브가 __cameraShot 로 넘기면 표시해 둔 기능으로 이어진다 */
+  w.localStorage.setItem("gb:camTarget", "chat");
+  w.__cameraShot("image/jpeg", "/9j/2wBDAAg=");
+  await wait(50);
+  assert($("gameChatScreen").classList.contains("open") && !$("chatPend").hidden, "채팅으로 부른 카메라면 채팅 첨부 대기로");
+  assert(!w.localStorage.getItem("gb:camTarget"), "표시는 지워져야 함");
+  $("chatPendX").click(); $("chatClose").click(); await wait(20);
+  let scanned = null;
+  w.fetch = async (url, opts) => { scanned = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ amount: 5000, merchant: "테스트", date: "" }) }] } }] }) }; };
+  w.localStorage.setItem("gb:camTarget", "receipt");
+  w.__cameraShot("image/jpeg", "/9j/2wBDAAg=");
+  await wait(200);
+  assert($("inboxSheet").classList.contains("open") && scanned && scanned.contents[0].parts.some((p) => p.inlineData), "영수증으로 부른 카메라면 대기열 화면에서 바로 읽기");
+  assert([...d.querySelectorAll("#ibList .ibrow .body b")].some((b) => b.textContent === "테스트"), "읽은 영수증이 대기열에");
+  $("ibClose").click();
   assert(errors.length === 0, "스크립트 오류: " + errors.join(" / "));
 };

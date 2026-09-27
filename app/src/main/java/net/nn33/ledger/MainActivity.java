@@ -100,12 +100,27 @@ public class MainActivity extends AppCompatActivity {
     /** 영수증 촬영 — <input capture> 가 오면 카메라 앱을 띄운다. 사진은 cache/receipts/ 에 FileProvider 로 쓴다.
      *  CAMERA 권한은 선언하지 않는다(ACTION_IMAGE_CAPTURE 는 권한 없이 되고, 선언하면 오히려 런타임 권한이 필요해진다). */
     private Uri cameraUri;
+    /** 카메라 앱이 떠 있는 동안 우리 프로세스가 죽었다 살아나면 WebView 의 파일 선택 콜백이 사라진다.
+     *  그때는 찍힌 파일을 base64 로 페이지의 __cameraShot(mime,b64) 에 넘긴다(페이지가 다 뜬 뒤). 파일 경로는
+     *  SharedPreferences 에 두어 재생성 뒤에도 안다. */
+    private String pendingShot;
+    private boolean pageReady;
     private final ActivityResultLauncher<Uri> takePicture =
         registerForActivityResult(new ActivityResultContracts.TakePicture(), ok -> {
-            if (filePicker == null) return;
-            filePicker.onReceiveValue(ok && cameraUri != null ? new Uri[]{cameraUri} : null);
-            filePicker = null;
-            cameraUri = null;
+            SharedPreferences sp = getSharedPreferences(PREF, MODE_PRIVATE);
+            String path = sp.getString("cam_path", null);
+            sp.edit().remove("cam_path").apply();
+            if (filePicker != null) {
+                filePicker.onReceiveValue(ok && cameraUri != null ? new Uri[]{cameraUri} : null);
+                filePicker = null;
+                cameraUri = null;
+                return;
+            }
+            // 재생성된 액티비티: 콜백이 없으니 페이지에 직접 넘긴다
+            if (ok && path != null) {
+                pendingShot = path;
+                deliverShot();
+            }
         });
 
     private boolean launchCamera() {
@@ -114,12 +129,23 @@ public class MainActivity extends AppCompatActivity {
             if (!dir.exists() && !dir.mkdirs()) return false;
             File f = new File(dir, "receipt-" + System.currentTimeMillis() + ".jpg");
             cameraUri = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".files", f);
+            getSharedPreferences(PREF, MODE_PRIVATE).edit().putString("cam_path", f.getAbsolutePath()).apply();
             takePicture.launch(cameraUri);
             return true;
         } catch (Exception e) {
             cameraUri = null;
             return false;
         }
+    }
+
+    private void deliverShot() {
+        if (pendingShot == null || !pageReady || web == null) return;
+        String path = pendingShot;
+        pendingShot = null;
+        byte[] bytes = readFile(new File(path));
+        if (bytes.length == 0) return;
+        String b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+        web.evaluateJavascript("window.__cameraShot&&window.__cameraShot('image/jpeg','" + b64 + "')", null);
     }
 
     /** 찍어 둔 영수증 임시 파일은 하루 지나면 지운다 (화면이 읽은 뒤에는 필요 없다) */
@@ -226,6 +252,8 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 view.evaluateJavascript(BACK_JS, null);
                 pushInsets();
+                pageReady = true;
+                deliverShot();
             }
         });
 

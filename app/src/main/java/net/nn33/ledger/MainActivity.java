@@ -148,6 +148,34 @@ public class MainActivity extends AppCompatActivity {
         web.evaluateJavascript("window.__cameraShot&&window.__cameraShot('image/jpeg','" + b64 + "')", null);
     }
 
+    /** Google 로그인 딥링크(net.nn33.ledger://login#access_token=…). 브라우저가 이 URL 로 앱을 부르면
+     *  페이지의 __oauth(url) 에 그대로 넘긴다 — 토큰은 URL 조각(#)에 있어 서버·로그엔 남지 않는다.
+     *  singleTask 라 이미 떠 있던 액티비티가 onNewIntent 로 받고, 죽어 있었으면 onCreate 의 getIntent() 로 받는다. */
+    private String pendingLink;
+
+    private void handleLink(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+        Uri u = intent.getData();
+        if (u == null || !"net.nn33.ledger".equals(u.getScheme())) return;
+        pendingLink = u.toString();
+        intent.setData(null); // 회전 등으로 다시 만들어질 때 같은 토큰을 두 번 넘기지 않게
+        deliverLink();
+    }
+
+    private void deliverLink() {
+        if (pendingLink == null || !pageReady || web == null) return;
+        String url = pendingLink;
+        pendingLink = null;
+        web.evaluateJavascript("window.__oauth&&window.__oauth(" + org.json.JSONObject.quote(url) + ")", null);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleLink(intent);
+    }
+
     /** 찍어 둔 영수증 임시 파일은 하루 지나면 지운다 (화면이 읽은 뒤에는 필요 없다) */
     private void sweepReceipts() {
         try {
@@ -168,7 +196,7 @@ public class MainActivity extends AppCompatActivity {
     /** 뒤로가기로 열려 있는 팝업·시트·전체화면을 먼저 닫게 하는 스크립트. 새 오버레이를 만들면 여기도 추가. */
     private static final String BACK_JS =
         "window.__back=function(){" +
-        "var m=[['notifAlert','naCancel'],['bkAlert','bkCancel'],['grpAlert','grpCancel'],['gameChoose','gcCancel']," +
+        "var m=[['notifAlert','naCancel'],['bkAlert','bkCancel'],['cloudAlert','cloudLater'],['grpAlert','grpCancel'],['gameChoose','gcCancel']," +
         "['diagScreen','dgClose'],['chatPicAlert','chatPicCancel'],['gameChatScreen','chatClose']," +
         "['sheet','fCancel'],['gSheet','gCancel'],['pSheet','pCancel'],['themeSheet','tDone']," +
         "['pickScreen','pkClose'],['ymSheet','ymCancel'],['rcAlert','rcCancel']," +
@@ -196,6 +224,7 @@ public class MainActivity extends AppCompatActivity {
         root.addView(web, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
+        handleLink(getIntent()); // 브라우저의 로그인 딥링크로 켜진 경우 (페이지가 뜬 뒤 전달)
 
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets sb = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
@@ -254,6 +283,7 @@ public class MainActivity extends AppCompatActivity {
                 pushInsets();
                 pageReady = true;
                 deliverShot();
+                deliverLink();
             }
         });
 

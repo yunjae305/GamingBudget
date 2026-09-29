@@ -1,12 +1,12 @@
 # 가계부 개인정보처리방침
 
-최종 수정: 2026-09-23
+최종 수정: 2026-09-29
 
 ## 요약
 
-- 이 앱은 **서버가 없습니다.** 입력한 기록, 읽은 알림, 설정은 전부 사용자의 기기 안에만 저장됩니다.
-- 개발자를 포함해 누구에게도 데이터를 보내지 않습니다. 계정 가입도 없습니다.
-- 광고·분석 SDK를 쓰지 않습니다.
+- 기본 상태에서 입력한 기록, 읽은 알림, 설정은 전부 사용자의 기기 안에만 저장됩니다. 계정 없이 쓸 수 있습니다.
+- 사용자가 메뉴에서 **클라우드 동기화에 로그인한 경우에만** 기록 한 벌이 사용자 본인 계정에 묶여 서버(Supabase)에 저장됩니다. 로그인하지 않으면 어떤 기록도 밖으로 나가지 않습니다.
+- 개발자는 사용자의 기록을 보지 않으며, 광고·분석 SDK를 쓰지 않습니다.
 
 ## 어떤 데이터를 다루나
 
@@ -16,6 +16,7 @@
 | 결제 알림에서 읽은 금액·가맹점·날짜 | 기기 내부 저장소 (결제 대기열) | 결제를 자동으로 기록하기 위해 |
 | 전체 기록의 복사본 (`mirror.json`) | 기기 내부 저장소 | 폰을 바꾸거나 앱을 다시 설치할 때 되살리기 위해 |
 | 백업 파일 (`가계부-백업-날짜.json`) | 사용자가 직접 고른 위치 | 사용자가 "백업 파일 내보내기"를 눌렀을 때만 만들어짐 |
+| 전체 기록의 복사본 + 로그인 이메일 | Supabase 서버 (서울 리전) — **로그인한 경우에만** | 새 폰에서 기록을 되살리고 기기 간 동기화하기 위해 |
 
 ## 알림 접근 권한
 
@@ -54,16 +55,28 @@
 - 대화는 기기 안에 최근 30개까지 저장되며 "지우기"로 지울 수 있습니다.
 - 전송된 내용의 처리 방식은 Google 의 정책을 따릅니다.
 
+## 클라우드 동기화 (선택 기능)
+
+메뉴 › 클라우드 동기화에서 이메일·비밀번호 또는 Google 계정으로 로그인하면, 앱이 기기 안에 두는 전체 기록의 복사본(수입·지출·저축·게임 결제 기록, 예산·배분·자산 설정, 결제 대기열, AI 조언 문구·상담 대화)이 Supabase(https://supabase.com) 서버에 저장됩니다.
+
+- 로그인하지 않으면 아무것도 전송되지 않습니다. 로그인은 선택이며 언제든 로그아웃할 수 있습니다.
+- 서버에는 사용자 계정(이메일 또는 Google 계정 식별자)과 기록 복사본만 저장됩니다. 데이터베이스 권한 규칙으로 **본인 계정만** 자기 기록을 읽고 쓸 수 있습니다.
+- Google 로그인을 쓰면 Google 이 Supabase 에 이메일 주소와 이름을 전달합니다. 앱은 이메일만 표시합니다.
+- 결제 알림 원문, 감지 기록, AI 키, 로그인 토큰은 서버에 올리지 않습니다.
+- 로그아웃하면 기기의 기록은 남고 서버 복사본도 유지됩니다. 서버 복사본까지 지우려면 문의 이메일로 계정 삭제를 요청하거나, 앱에서 모든 기록을 지운 뒤 동기화하면 빈 복사본으로 바뀝니다.
+- 서버 운영은 Supabase 의 정책(https://supabase.com/privacy)을 따릅니다.
+
 ## 하루 예산 알림 (선택 기능)
 
 설정에서 켜면 아침에 "오늘 쓸 수 있는 돈", 저녁에 "오늘 남은 돈"을 기기 알림으로 보여 줍니다. 이 계산은 기기 안의 기록만으로 이루어지며, 어떤 데이터도 밖으로 나가지 않습니다. 안드로이드 13 이상에서는 알림 권한을 요청하고, 재부팅 후 알림을 다시 예약하기 위해 부팅 완료 신호를 받습니다.
 
 ## 인터넷 사용
 
-`INTERNET` 권한은 다음 두 가지에만 씁니다.
+`INTERNET` 권한은 다음에만 씁니다.
 
 1. 화면 글꼴(Google Fonts)을 온라인일 때 내려받기. 이 요청에는 사용자 데이터가 담기지 않습니다.
 2. 개발자가 직접 설치해 쓰는 개인용 빌드에서 화면 파일을 갱신하기. **스토어에 배포되는 빌드에는 이 기능이 없습니다.**
+3. 사용자가 켠 선택 기능: 클라우드 동기화(로그인한 경우), AI 조언·영수증 스캔·과금 상담(버튼을 누른 경우).
 
 ## 안드로이드 자동 백업
 
@@ -83,7 +96,9 @@
 
 # Privacy Policy (English summary)
 
-This app has **no server**. Everything you enter, every payment notification it reads, and all settings stay on your device. Nothing is sent to the developer or any third party. There are no accounts, no ads, and no analytics.
+By default everything you enter, every payment notification it reads, and all settings stay on your device. No account is required, and there are no ads and no analytics.
+
+**Optional cloud sync**: only if you sign in (email/password or Google) from the menu, a copy of your records is stored under your own account on Supabase (Seoul region). Row-level security lets only your account read or write it. Notification text, the AI key and login tokens are never uploaded. Signing out keeps the records on your device.
 
 **Optional AI spending advice** (Stats tab): only when you tap "생성하기", the app sends only aggregate numbers (totals, per-category sums, budget usage) directly from your device to Google's Gemini API using a key bundled in the app — never merchant names or individual transaction memos.
 

@@ -122,7 +122,7 @@ main{padding-top:10px;padding-bottom:calc(72px + calc(var(--sab) / var(--zoom, 1
 .track i.warn{background:var(--orange)} .track i.over{background:var(--red)}
 
 /* 입력 필드 (행 안) */
-.row input[type=text],.row input[type=date],.row input[type=time],.row select{
+.row input[type=text],.row input[type=email],.row input[type=password],.row input[type=date],.row input[type=time],.row select{
   flex:1;min-width:0;border:none;background:transparent;text-align:right;padding:0;
   font-variant-numeric:tabular-nums;
 }
@@ -595,6 +595,9 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <div class="row"><span class="t">모델</span><input id="aiModelInput" type="text" placeholder="gemini-flash-lite-latest" style="text-align:right;width:100%"></div>
   </div>
   <p class="note" id="aiKeyNote">AI 키는 앱에 내장돼 있어 따로 넣지 않습니다. 통계 탭 조언에는 카테고리별 지출 합계 숫자만 보내고, 가게 이름이나 메모는 보내지 않습니다. 결제 대기열의 <b>영수증 스캔</b>은 고른 사진을 Google Gemini 에 보내 금액·가게·날짜를 읽습니다. 무료 사용량이 있는 가장 가벼운 모델이 기본값입니다.</p>
+  <p class="hdr">클라우드 동기화</p>
+  <div class="card" id="cloudCard"></div>
+  <p class="note" id="cloudNote"></p>
   <p class="hdr">데이터</p>
   <div class="card">
     <button class="row tap" id="bkExport" style="width:100%;text-align:left"><span class="t">백업 파일 내보내기</span><span class="val" id="bkLast"></span><span class="chev">›</span></button>
@@ -617,6 +620,16 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <div class="atitle">백업을 가져올까요?</div>
     <div class="amsg" id="bkAlertMsg"></div>
     <div class="abtns"><button id="bkCancel">취소</button><button id="bkOk" style="color:var(--red)">덮어쓰기</button></div>
+  </div>
+</div>
+
+<div class="alertwrap" id="cloudAlert" role="dialog" aria-label="서버 기록">
+  <div class="alert">
+    <div class="atitle">서버에 기록이 있습니다</div>
+    <div class="amsg" id="cloudAlertMsg"></div>
+    <button class="gcbtn" id="cloudPullBtn">서버 기록 받기</button>
+    <button class="gcbtn" id="cloudPushBtn">이 폰 기록 올리기</button>
+    <button class="gcbtn cancel" id="cloudLater">나중에</button>
   </div>
 </div>
 
@@ -711,21 +724,23 @@ function dumpAll(){
   const data={};
   for(let i=0;i<localStorage.length;i++){
     const k=localStorage.key(i);
-    /* AI 키는 자격증명이라 백업·미러에 담지 않는다. 생성된 조언 텍스트(gb:ai/note/*)는 그냥 텍스트라 포함. */
-    if(k&&k.startsWith("gb:")&&k!=="gb:ai/key")data[k]=localStorage.getItem(k);
+    /* AI 키·클라우드 세션은 자격증명이라 백업·미러·서버에 담지 않는다. 생성된 조언 텍스트(gb:ai/note/*)는 그냥 텍스트라 포함. */
+    if(k&&k.startsWith("gb:")&&k!=="gb:ai/key"&&!k.startsWith("gb:cloud/"))data[k]=localStorage.getItem(k);
   }
   return {app:"ledger",ver:1,at:new Date().toISOString(),data};
 }
 function restoreAll(obj){
   if(!obj||obj.app!=="ledger"||!obj.data||typeof obj.data!=="object")return false;
-  const keys=Object.keys(obj.data).filter(k=>k.startsWith("gb:"));
+  const keys=Object.keys(obj.data).filter(k=>k.startsWith("gb:")&&!k.startsWith("gb:cloud/"));
   if(!keys.length)return false;
-  for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(k&&k.startsWith("gb:"))localStorage.removeItem(k);}
+  /* 이 기기의 로그인 세션(gb:cloud/*)은 기록이 아니라 남긴다 */
+  for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(k&&k.startsWith("gb:")&&!k.startsWith("gb:cloud/"))localStorage.removeItem(k);}
   keys.forEach(k=>{try{localStorage.setItem(k,String(obj.data[k]));}catch(e){}});
   return true;
 }
 let mirrorT=null;
 function scheduleMirror(){
+  scheduleCloud();
   if(!(window.Android&&window.Android.mirror))return;
   clearTimeout(mirrorT);
   mirrorT=setTimeout(()=>{try{window.Android.mirror(JSON.stringify(dumpAll()));}catch(e){}},2500);
@@ -786,8 +801,173 @@ $("bkOk").addEventListener("click",()=>{
   $("bkAlert").classList.remove("open");
   if(!ok){toast("가져오지 못했습니다");return;}
   try{if(window.Android&&window.Android.mirror)window.Android.mirror(JSON.stringify(dumpAll()));}catch(e){}
+  if(cloudOn())setCloudMeta("dirty","1"); // 다시 뜬 뒤 서버에도 올린다
   location.reload();
 });
+
+/* ── 클라우드 동기화 (Supabase, 2026-09-29 사용자 요청) ──
+   로그인하면 미러와 같은 JSON 한 벌을 사용자별 한 행(public.snapshots)에 올린다. 폰의 localStorage 가 기준이고
+   서버는 복사본이다 — 새 폰에서 로그인하면 받아오고, 다른 기기가 올린 게 더 새로우면 물어본다.
+   SB_KEY 는 공개용(publishable) 키라 코드에 둬도 된다. 행 단위 권한(RLS)이 본인 행만 열어 준다.
+   세션·동기화 상태는 gb:cloud/* 에 두고 백업·미러·서버 어디에도 넣지 않는다. 라이브러리 없이 REST 로 직접 부른다. */
+const SB_URL="https://jxjmrxusumcbfgwzqdrd.supabase.co",SB_KEY="sb_publishable_OuQjHw8KcM-KeEqY_Gmq6w_qrhA7XBY";
+const SB_REDIRECT="net.nn33.ledger://login"; // Google 로그인 뒤 앱으로 돌아오는 딥링크 (매니페스트 intent-filter)
+const AUTH_MSG={invalid_credentials:"이메일 또는 비밀번호가 틀립니다",email_not_confirmed:"확인 메일의 링크를 먼저 눌러 주세요",user_already_exists:"이미 가입된 이메일입니다",
+  weak_password:"비밀번호는 6자 이상이어야 합니다",over_email_send_rate_limit:"메일을 너무 자주 보냈습니다. 잠시 뒤 다시 해 주세요",validation_failed:"이메일 주소를 확인해 주세요",
+  email_address_invalid:"이메일 주소를 확인해 주세요",over_request_rate_limit:"요청이 너무 잦습니다. 잠시 뒤 다시 해 주세요"};
+const cloudSession=()=>{try{return JSON.parse(localStorage.getItem("gb:cloud/session")||"null");}catch(e){return null;}};
+function setCloudSession(s){try{s?localStorage.setItem("gb:cloud/session",JSON.stringify(s)):localStorage.removeItem("gb:cloud/session");}catch(e){}}
+const cloudOn=()=>!!cloudSession();
+const cloudMeta=k=>{try{return localStorage.getItem("gb:cloud/"+k)||"";}catch(e){return "";}};
+const setCloudMeta=(k,v)=>{try{v?localStorage.setItem("gb:cloud/"+k,v):localStorage.removeItem("gb:cloud/"+k);}catch(e){}};
+const ts=x=>{const t=x?new Date(x).getTime():0;return isNaN(t)?0:t;};
+async function sbFetch(path,opt,auth){
+  opt=opt||{};const h=Object.assign({apikey:SB_KEY,"Content-Type":"application/json"},opt.headers||{});
+  if(auth){
+    let s=cloudSession();if(!s)throw new Error("로그인이 필요합니다");
+    if(s.expires_at&&Date.now()/1000>s.expires_at-60)s=await cloudRefresh(s);
+    h.Authorization="Bearer "+s.access_token;
+  }
+  let r;try{r=await fetch(SB_URL+path,Object.assign({},opt,{headers:h}));}catch(e){throw new Error("인터넷 연결을 확인해 주세요");}
+  const txt=await r.text();let body=null;try{body=txt?JSON.parse(txt):null;}catch(e){body=null;}
+  if(!r.ok){
+    const code=body&&(body.error_code||body.error||body.code);
+    const err=new Error(AUTH_MSG[code]||(body&&(body.msg||body.message||body.error_description))||("HTTP "+r.status));
+    err.status=r.status;throw err;
+  }
+  return body;
+}
+function sessionFrom(b,email){
+  const u=b.user||{};
+  return {access_token:b.access_token,refresh_token:b.refresh_token,expires_at:Number(b.expires_at)||Math.floor(Date.now()/1000)+(Number(b.expires_in)||3600),uid:u.id||"",email:u.email||email||""};
+}
+async function cloudRefresh(s){
+  try{
+    const b=await sbFetch("/auth/v1/token?grant_type=refresh_token",{method:"POST",body:JSON.stringify({refresh_token:s.refresh_token})});
+    const n=sessionFrom(b,s.email);if(!n.uid)n.uid=s.uid;setCloudSession(n);return n;
+  }catch(e){
+    if(e.status===400||e.status===401||e.status===403){setCloudSession(null);renderCloud();throw new Error("세션이 끝났습니다. 다시 로그인해 주세요");}
+    throw e;
+  }
+}
+async function ensureUid(){
+  const s=cloudSession();if(!s)return null;
+  if(!s.uid||!s.email){const u=await sbFetch("/auth/v1/user",{},true);const n=cloudSession()||s;n.uid=u.id||n.uid;n.email=u.email||n.email;setCloudSession(n);return n;}
+  return s;
+}
+async function cloudLogin(email,pw){
+  const b=await sbFetch("/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email,password:pw})});
+  setCloudSession(sessionFrom(b,email));await afterLogin();
+}
+async function cloudSignUp(email,pw){
+  const b=await sbFetch("/auth/v1/signup",{method:"POST",body:JSON.stringify({email,password:pw})});
+  if(b&&b.access_token){setCloudSession(sessionFrom(b,email));await afterLogin();return;}
+  toast("확인 메일을 보냈습니다. 메일의 링크를 누른 뒤 로그인하세요");
+}
+/* Google 로그인: Supabase 의 authorize 로 보내면 브라우저에서 Google 로그인 뒤 SB_REDIRECT 딥링크로 돌아온다.
+   앱에서는 우리 오리진 밖 이동을 네이티브가 브라우저로 넘긴다(§2). 돌아온 URL 은 네이티브가 __oauth(url) 로 준다. */
+function cloudGoogle(){
+  const url=SB_URL+"/auth/v1/authorize?provider=google&redirect_to="+encodeURIComponent(SB_REDIRECT);
+  if(hasBridge())location.href=url;else window.open(url,"_blank");
+}
+window.__oauth=async function(url){
+  const q=new URLSearchParams(String(url||"").split("#")[1]||"");
+  if(q.get("error")){toast("Google 로그인 실패: "+(q.get("error_description")||q.get("error")));return;}
+  const at=q.get("access_token"),rt=q.get("refresh_token");if(!at||!rt)return;
+  setCloudSession({access_token:at,refresh_token:rt,expires_at:Math.floor(Date.now()/1000)+(Number(q.get("expires_in"))||3600),uid:"",email:""});
+  try{await ensureUid();}catch(e){}
+  await afterLogin();
+};
+async function cloudGet(){
+  const rows=await sbFetch("/rest/v1/snapshots?select=data,at",{},true); // RLS 가 본인 행만 준다
+  return (Array.isArray(rows)&&rows[0]&&rows[0].data)?rows[0]:null;
+}
+const cloudLabel=srv=>{const d=new Date(srv.at);return isNaN(d)?"":d.getMonth()+1+"월 "+d.getDate()+"일 "+pad(d.getHours())+":"+pad(d.getMinutes())+"에 저장한";};
+/* 로그인 직후: 서버가 비었으면 폰 기록을 올리고, 폰이 비었으면 서버 기록을 받고, 둘 다 있으면 묻는다 */
+async function afterLogin(){
+  renderCloud();
+  let srv=null;
+  try{srv=await cloudGet();}catch(e){toast("로그인은 됐지만 서버를 읽지 못했습니다: "+e.message);return;}
+  if(!srv){await cloudPush(true);return;}
+  if(!hasRecords()){takeServer(srv);return;}
+  askCloud(srv,"서버에 "+cloudLabel(srv)+" 기록이 있습니다. 어느 쪽을 쓸까요? 고르지 않은 쪽은 덮어써집니다.");
+}
+function takeServer(srv){
+  if(!restoreAll(srv.data)){toast("서버 기록을 읽지 못했습니다");return;}
+  setCloudMeta("at",srv.at);setCloudMeta("synced",new Date().toISOString());setCloudMeta("dirty","");
+  try{if(window.Android&&window.Android.mirror)window.Android.mirror(JSON.stringify(dumpAll()));}catch(e){}
+  toast("서버 기록을 받았습니다");setTimeout(()=>location.reload(),900);
+}
+let cloudT=null;
+function scheduleCloud(){if(!cloudOn())return;clearTimeout(cloudT);cloudT=setTimeout(()=>cloudPush(false),4000);}
+async function cloudPush(loud){
+  if(!cloudOn())return false;
+  try{
+    const s=await ensureUid();
+    const snap=dumpAll();
+    await sbFetch("/rest/v1/snapshots",{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=minimal"},
+      body:JSON.stringify({user_id:s.uid,data:snap,at:snap.at,device:(navigator.userAgent||"").slice(0,80)})},true);
+    setCloudMeta("at",snap.at);setCloudMeta("synced",new Date().toISOString());setCloudMeta("dirty","");
+    if(loud)toast("서버에 올렸습니다");
+  }catch(e){setCloudMeta("dirty","1");if(loud)toast("올리지 못했습니다: "+e.message);}
+  renderCloud();return !cloudMeta("dirty");
+}
+/* 앱 시작·"지금 동기화": 다른 기기가 더 새로 올렸으면 묻고, 아니면 밀린 변경을 올린다 */
+async function cloudCheck(manual){
+  if(!cloudOn())return;
+  let srv=null;
+  try{srv=await cloudGet();}catch(e){if(manual)toast("서버에 연결하지 못했습니다: "+e.message);return;}
+  if(srv&&ts(srv.at)>ts(cloudMeta("at"))+500){
+    if(!hasRecords()){takeServer(srv);return;}
+    askCloud(srv,"다른 기기에서 "+cloudLabel(srv)+" 기록이 있습니다. 받아올까요? 이 폰 기록을 올리면 서버 쪽이 덮어써집니다.");
+    return;
+  }
+  if(manual||cloudMeta("dirty")||!srv)await cloudPush(manual);
+}
+let cloudSrv=null;
+function askCloud(srv,msg){cloudSrv=srv;$("cloudAlertMsg").textContent=msg;$("cloudAlert").classList.add("open");}
+$("cloudPullBtn").addEventListener("click",()=>{const s=cloudSrv;cloudSrv=null;$("cloudAlert").classList.remove("open");if(s)takeServer(s);});
+$("cloudPushBtn").addEventListener("click",()=>{cloudSrv=null;$("cloudAlert").classList.remove("open");cloudPush(true);});
+$("cloudLater").addEventListener("click",()=>{cloudSrv=null;$("cloudAlert").classList.remove("open");});
+async function cloudLogout(){
+  try{await sbFetch("/auth/v1/logout",{method:"POST"},true);}catch(e){}
+  setCloudSession(null);setCloudMeta("at","");setCloudMeta("synced","");setCloudMeta("dirty","");
+  renderCloud();toast("로그아웃했습니다. 기록은 이 폰에 그대로 있습니다");
+}
+function agoLabel(iso){
+  const m=Math.floor((Date.now()-ts(iso))/6e4);
+  return m<1?"방금":m<60?m+"분 전":m<1440?Math.floor(m/60)+"시간 전":Math.floor(m/1440)+"일 전";
+}
+function renderCloud(){
+  const host=$("cloudCard"),note=$("cloudNote"),s=cloudSession();
+  if(!s){
+    host.innerHTML='<div class="row"><span class="t">이메일</span><input id="clEmail" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email"></div>'+
+      '<div class="row"><span class="t">비밀번호</span><input id="clPw" type="password" placeholder="6자 이상" autocomplete="current-password"></div>'+
+      '<div class="row" style="gap:8px"><button class="btn tint" id="clLogin" style="flex:1">로그인</button><button class="btn tint" id="clSignUp" style="flex:1">가입</button></div>'+
+      '<button class="row tap" id="clGoogle" style="width:100%;text-align:left"><span class="t">Google 계정으로 로그인</span><span class="chev">›</span></button>';
+    note.textContent="로그인하면 기록 한 벌이 서버(Supabase)에도 저장돼 새 폰에서 로그인만 하면 그대로 돌아옵니다. 로그인하지 않으면 지금처럼 이 폰 안에만 있습니다. 가입은 확인 메일의 링크를 누르면 끝납니다.";
+    const go=async fn=>{
+      const e=$("clEmail").value.trim(),p=$("clPw").value;
+      if(!e||!p){toast("이메일과 비밀번호를 넣어 주세요");return;}
+      $("clLogin").disabled=$("clSignUp").disabled=true;
+      try{await fn(e,p);}catch(err){toast(err.message||"실패했습니다");}
+      finally{const b=$("clLogin");if(b){b.disabled=false;$("clSignUp").disabled=false;}}
+    };
+    $("clLogin").addEventListener("click",()=>go(cloudLogin));
+    $("clSignUp").addEventListener("click",()=>go(cloudSignUp));
+    $("clGoogle").addEventListener("click",cloudGoogle);
+    $("bkNote").textContent="기록은 이 폰 안에만 저장됩니다. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 내보내 두세요.";
+    return;
+  }
+  const syn=cloudMeta("synced"),dirty=!!cloudMeta("dirty");
+  host.innerHTML='<div class="row"><span class="t">계정</span><span class="val" style="word-break:break-all">'+esc(s.email||"로그인됨")+'</span></div>'+
+    '<button class="row tap" id="clSync" style="width:100%;text-align:left"><span class="t">지금 동기화</span><span class="val" style="color:'+(dirty?"var(--orange)":"var(--label2)")+'">'+(dirty?"올릴 변경 있음":syn?"마지막 "+agoLabel(syn):"아직 안 함")+'</span><span class="chev">›</span></button>'+
+    '<button class="row tap" id="clLogout" style="width:100%;text-align:left"><span class="t" style="color:var(--red)">로그아웃</span></button>';
+  note.textContent="저장할 때마다 몇 초 뒤 서버에 올라갑니다. 서버에는 전체 기록 한 벌이 있고 본인 계정만 읽을 수 있습니다. 로그아웃해도 이 폰의 기록은 남습니다.";
+  $("clSync").addEventListener("click",()=>cloudCheck(true));
+  $("clLogout").addEventListener("click",cloudLogout);
+  $("bkNote").textContent="서버에도 저장되지만, 파일 백업은 따로 한 벌 더 두는 용도로 남겨 둡니다.";
+}
 const saveCfg=()=>save("config/main",cfg);
 function saveMonth(){
   MON[ym]=txs;
@@ -1523,7 +1703,7 @@ function renderSettings(){
   $("aiNameInput").value=aiName();$("aiModelInput").value=aiModel();
   $("aiKeyNote").style.color=builtinAiKey()?"":"var(--red)";
   if(!builtinAiKey())$("aiKeyNote").textContent=noKeyMsg+" (클라우드·CI 빌드는 GEMINI_API_KEY 시크릿이 있어야 키가 들어갑니다.)";
-  renderReminders();renderPayday();
+  renderReminders();renderPayday();renderCloud();
   if(!hasBridge()){
     host.innerHTML='<div class="row"><span class="t">알림 감지</span><span class="val">앱에서만 가능</span></div>';
     note.textContent="설치한 안드로이드 앱에서 카드사·은행·페이 앱 알림을 읽어 결제를 자동으로 모읍니다.";
@@ -2560,6 +2740,7 @@ function autoStatus(){
 }
 window.__pullPending=function(){
   autoStatus();
+  if(cloudOn()&&cloudMeta("dirty"))cloudPush(false); // 못 올린 변경이 있으면 앱으로 돌아올 때 다시
   if(!hasBridge())return;
   let arr=[];
   try{arr=JSON.parse(window.Android.takePending()||"[]");}catch(e){arr=[];}
@@ -2769,6 +2950,7 @@ async function loadMonth(){
   syncBars();
   await loadMonth();
   render();
+  cloudCheck(false); // 로그인돼 있으면 다른 기기 변경 확인·밀린 변경 올리기
 })();
 })();
 </script>

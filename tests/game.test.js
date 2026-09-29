@@ -53,5 +53,21 @@ module.exports = async function () {
   await wait(600);
   assert($("pkBody").textContent.includes("테스트 상자"), "새 제품이 목록에 보여야 함");
 
+  /* 게임 탭 머리: 큰 숫자는 모든 달을 합친 총 결제 금액, 요약 줄엔 이번 달 금액 (지난달 대비 % 는 없앰) */
+  $("pkBody").querySelector(".card .row").click(); // 직접 입력
+  await wait(30);
+  input($("gAmt"), "5000");
+  $("gName").value = "지난달 패키지";
+  const cur = $("gDate").value.slice(0, 7);
+  const prev = new Date(Number(cur.slice(0, 4)), Number(cur.slice(5, 7)) - 2, 1);
+  $("gDate").value = prev.getFullYear() + "-" + String(prev.getMonth() + 1).padStart(2, "0") + "-15";
+  $("gSave").click();
+  await wait(600);
+  $("gdClose").click();
+  await wait(50);
+  assert($("gAllTotal") && $("gAllTotal").textContent === "17,600원", "지금까지 총액 = 이번 달 12,600 + 지난달 5,000 — 실제: " + ($("gAllTotal") && $("gAllTotal").textContent));
+  assert($("gMonthTotal") && $("gMonthTotal").textContent === "12,600원", "요약 줄 이번 달 금액 — 실제: " + ($("gMonthTotal") && $("gMonthTotal").textContent));
+  assert(!/지난달 대비/.test(d.body.textContent), "지난달 대비 % 지표는 없어야 함");
+
   assert(errors.length === 0, "스크립트 오류: " + errors.join(" / "));
 };

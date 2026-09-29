@@ -2250,6 +2250,7 @@ function gCommit(rec){
   else load("game/"+t).then(doc=>{
     const list=(doc&&doc.items)||[];list.push(rec);save("game/"+t,{items:list});
     gsum[t]=gTotal(list);save("index/gsummary",{months:gsum});
+    if(tab==="game")render(); /* 게임 탭 머리의 "지금까지 총액" 이 이 달 합계를 쓴다 */
   });
 }
 function weekSums(){
@@ -2277,22 +2278,23 @@ function renderGame(){
   const pct=G.month?total/G.month*100:0;
   const st=!G.month?["한도 미설정","--label2"]:pct>=100?["위험","--red"]:pct>=80?["주의","--orange"]:["안정","--green"];
 
-  /* 헤더 */
+  /* 헤더 — 큰 숫자는 지금까지의 총 결제 금액(모든 달), 한도 줄은 보는 달 기준 (사용자 요청 2026-09-29) */
+  const allTotal=Object.keys(gsum).reduce((a,k)=>a+(k===ym?0:(gsum[k]||0)),0)+total;
   let hero='<div style="padding:20px 16px 18px;text-align:center">'+
     '<div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-bottom:2px">'+
-      '<span style="font-size:13px;color:var(--label2)">이번 달 게임 지출</span>'+
+      '<span style="font-size:13px;color:var(--label2)">지금까지 게임 결제 총액</span>'+
       '<span class="pill" style="color:var('+st[1]+')">'+st[0]+'</span></div>'+
-    '<div class="big-amt">'+fmt(total)+'원</div>';
+    '<div class="big-amt" id="gAllTotal">'+fmt(allTotal)+'원</div>';
   if(G.month){
     const left=G.month-total;
-    hero+='<div style="font-size:13px;color:var(--label2)" class="tnum">한도 '+fmt(G.month)+'원 · '+
+    hero+='<div style="font-size:13px;color:var(--label2)" class="tnum">이번 달 '+fmt(total)+'원 · 한도 '+fmt(G.month)+'원 · '+
       (left>=0?'남은 <span style="color:var(--green)">'+fmt(left)+'원</span>':
         '<span style="color:var(--red)">'+fmt(-left)+'원 초과</span>')+'</div>'+
       '<div class="track" style="height:8px;margin:16px 0 6px"><i style="width:'+Math.min(100,pct)+
         '%;background:var('+(pct>=100?"--red":pct>=80?"--orange":"--green")+')"></i></div>'+
       '<div class="ticks">'+[0,.25,.5,.75,1].map(f=>'<span>'+tick(G.month*f)+'</span>').join("")+'</div>';
   }else{
-    hero+='<div style="font-size:13px;color:var(--label2);margin-top:6px">아래에서 월 한도를 정하면 사용률이 보입니다</div>';
+    hero+='<div style="font-size:13px;color:var(--label2);margin-top:6px">아래에서 월 한도를 정하면 이번 달 사용률이 보입니다</div>';
   }
   hero+='</div>';
 
@@ -2301,12 +2303,11 @@ function renderGame(){
   const[yy,mm]=ym.split("-").map(Number);
   const pd=new Date(yy,mm-2,1),pk=pd.getFullYear()+"-"+pad(pd.getMonth()+1);
   const prevM=gsum[pk]||0;
-  const diff=prevM?Math.round((total-prevM)/prevM*100):null;
   const stats='<div class="stats">'+
     '<div><span>이번 주</span><b class="tnum">'+(w?fmt(w.now):"—")+'</b>'+
       (w?'<i>'+(w.cut?"1일부터":(w.prev===null?"첫 주":"지난주 "+(w.now-w.prev>=0?"+":"−")+fmt(Math.abs(w.now-w.prev))))+'</i>':'<i>이번 달 아님</i>')+'</div>'+
-    '<div><span>지난달 대비</span><b style="color:var('+(diff===null?"--label":diff>0?"--red":"--green")+')">'+
-      (diff===null?"—":(diff>0?"+":"")+diff+"%")+'</b><i>'+(prevM?fmt(prevM)+"원":"기록 없음")+'</i></div>'+
+    '<div><span>이번 달</span><b class="tnum" id="gMonthTotal" style="color:var('+(G.month&&total>G.month?"--red":"--label")+')">'+fmt(total)+'원</b>'+
+      '<i>'+(G.month?"한도의 "+Math.round(pct)+"%":(prevM?"지난달 "+fmt(prevM)+"원":"결제 금액"))+'</i></div>'+
     '<div><span>결제 횟수</span><b>'+games.length+'회</b><i>이번 달</i></div></div>';
 
   /* 경고 */

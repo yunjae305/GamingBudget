@@ -19,7 +19,7 @@ ledger/
 │   └─ ReminderReceiver / BootReceiver   알람 수신, 재부팅 후 재등록
 ├─ app/src/main/res/values/strings.xml   update_url (개인 빌드 자동 업데이트 주소)
 ├─ app/src/main/res/xml/    backup_rules / data_extraction_rules — 자동 백업에 files/ 포함, live/ 제외
-├─ tests/                  jsdom 테스트 (npm test): 대기열, 파서 문구 모음, 게임 기록, 백업, 알림 감지 진단, 하루 예산·검색·통계·영수증·알림 설정
+├─ tests/                  jsdom 테스트 (npm test): 대기열, 파서 문구 모음, 게임 기록, 백업, 알림 감지 진단, 하루 예산·검색·통계·영수증·알림 설정, 클라우드 동기화
 ├─ tools/                  개발용 — artifact-preview.html(미리보기 무대), setup-android.sh(클라우드 빌드 환경), character-full.png(원본 일러스트)
 ├─ PRIVACY.md              개인정보처리방침 (스토어 제출용, 알림 접근 권한 설명)
 ├─ keystore.properties.example   릴리스 서명 설정 본보기 (실제 파일·jks 는 gitignore)
@@ -57,7 +57,7 @@ ledger/
 - `rescanNotifs()` → 지금 상태 바에 떠 있는 알림을 다시 훑는다(§3 재스캔). `notifLog()` / `notifStats()` / `clearNotifLog()` / `noteDropped(pkg,text,time,why)` → 알림 감지 진단용 (§4 진단 화면)
 - `reminders()` → 하루 예산 알림 상태 `{on,morning,evening,granted,needsPermission}`. `setReminders(on,"HH:MM","HH:MM")` → 저장하고 알람 재등록. `askNotifPermission()` → 안드로이드 13+ 알림 권한 요청(결과 `__notifPerm(granted)`). `testReminder(evening)` → 지금 알림 하나 띄워 보기
 
-네이티브 → 화면: `__pullPending()`(onResume), `__back()`(뒤로가기), `__savedFile(ok)`, `__notifPerm(granted)`, 그리고 창 인셋을 `--sat`/`--sab` CSS 변수로 밀어 넣는다.
+네이티브 → 화면: `__pullPending()`(onResume), `__back()`(뒤로가기), `__savedFile(ok)`, `__notifPerm(granted)`, `__cameraShot(mime,b64)`, `__oauth(url)`(Google 로그인 딥링크 `net.nn33.ledger://login#access_token=…` — 매니페스트 intent-filter + `launchMode="singleTask"`, `onNewIntent`/`onCreate` 의 `handleLink` 가 페이지가 뜬 뒤 넘김), 그리고 창 인셋을 `--sat`/`--sab` CSS 변수로 밀어 넣는다.
 
 **하루 예산 알림** — `Reminders` 가 `AlarmManager.setAndAllowWhileIdle` 로 아침·저녁 다음 회차를 걸고, 울리면 알림을 띄운 뒤 다음 날 것을 다시 건다(정확한 알람 권한 불필요, 절전 중엔 몇 분 늦을 수 있음). 숫자는 화면이 못 보는 시간에도 계산해야 해서 `files/mirror.json` 에서 읽는다 — 화면의 `dailyBudget()` 과 같은 규칙(월급날 기간 `budget.payday`/`payNext` 포함, 기간이 걸친 두 달을 읽음). 총 예산이 없으면 그날은 알림을 띄우지 않는다. 앱 시작(`onCreate`)과 재부팅(`BootReceiver`) 때 `schedule()` 로 재정비. 설정은 SharedPreferences `reminders`(localStorage·백업 밖).
 
@@ -101,6 +101,15 @@ ledger/
 | `gb:ai/model` `gb:ai/name` `gb:ai/persona` | AI 모델명·캐릭터 이름·말투 설정. 백업에 포함 |
 | `gb:ai/note/YYYY-MM` | 그 달 생성한 `{comment,advice,at}`. 한 달에 한 번 캐시, 백업에 포함 |
 | `gb:ai/gchat` | 게임 과금 상담 대화 `[{role,text}]` 최근 30개. 백업 포함 |
+| `gb:cloud/session` `gb:cloud/at` `gb:cloud/synced` `gb:cloud/dirty` | 클라우드 로그인 세션(access/refresh 토큰·uid·email)·마지막으로 올린/받은 스냅샷 `at`·동기화 시각·못 올린 변경 표시. **백업·미러·서버 어디에도 안 들어가고 `restoreAll` 도 안 지운다** |
+
+### 클라우드 동기화 (Supabase, 2026-09-29)
+- 프로젝트 `ledger`(ref `jxjmrxusumcbfgwzqdrd`, 서울 ap-northeast-2), 조직 "yunjae305's Org". 테이블 `public.snapshots(user_id pk → auth.users, data jsonb, at, device, updated_at)` + RLS(본인 행만 select/insert/update/delete). 마이그레이션은 MCP `apply_migration` 으로 넣었다(`ledger_snapshots`). 무료 플랜 활성 2개 제한 때문에 `itsmine` 을 일시정지하고 만들었다(사용자 지시).
+- 페이지는 라이브러리 없이 REST 로 직접 부른다: `SB_URL`/`SB_KEY`(publishable 키 — 공개용이라 코드에 둠) → `sbFetch(path,opt,auth)` 가 apikey·Bearer 헤더, 만료 60초 전 `cloudRefresh`, 오류 코드를 `AUTH_MSG` 로 한국어화. 로그인 `cloudLogin`(password grant)·`cloudSignUp`(확인 메일)·`cloudGoogle`(`/auth/v1/authorize?provider=google&redirect_to=net.nn33.ledger://login` 으로 이동 → 네이티브가 브라우저로 넘김 → 딥링크로 돌아와 `__oauth(url)` 이 조각의 토큰을 세션으로, `/auth/v1/user` 로 이메일).
+- **폰의 localStorage 가 기준, 서버는 복사본.** `scheduleMirror()` 가 `scheduleCloud()` 도 불러 4초 뒤 `cloudPush()` 가 `dumpAll()` 한 벌을 upsert(`Prefer: resolution=merge-duplicates`). 실패하면 `dirty` 표시 → `__pullPending`(onResume)·`cloudCheck`(init) 때 다시. `afterLogin()`: 서버 비었으면 올리고, 폰 비었으면 `takeServer()`(restoreAll + reload), 둘 다 있으면 `#cloudAlert` 로 묻는다. `cloudCheck(manual)`: 서버 `at` 가 로컬 `gb:cloud/at` 보다 새로우면(다른 기기) 묻고, 아니면 밀린 변경/수동이면 올린다. 백업 파일 가져오기 뒤에도 `dirty` 를 켜서 서버에 반영.
+- 메뉴 시트 "클라우드 동기화" 카드(`renderCloud()`): 로그아웃 상태는 이메일·비밀번호·로그인·가입·Google 행, 로그인 상태는 계정·지금 동기화(마지막 시각/올릴 변경 있음)·로그아웃. `#bkNote` 문구도 상태 따라 바꾼다.
+- **대시보드에서만 되는 설정**(MCP 로 못 함, README "클라우드 동기화" 참고): Redirect URLs 에 `net.nn33.ledger://login`, Google provider 의 클라이언트 ID·비밀번호(Google Cloud 콘솔 웹 애플리케이션 클라이언트, 리디렉션 URI `https://jxjmrxusumcbfgwzqdrd.supabase.co/auth/v1/callback`). 비밀번호 값은 채팅·파일에 적지 않는다.
+- 테스트 `tests/cloud.test.js` 가 fetch 를 흉내 내 로그인 오류 문구, 올리기/받기/묻기, 저장 뒤 자동 올리기, 딥링크 `__oauth`, 로그아웃, 백업 파일에 토큰이 없는지 확인한다.
 
 `cfg` = `{budget:{total,cat:{},payday,payNext}, plan:{income,envelopes[{id,name,pct,mode:"pct"|"amt",amt,saving,color}],goal,budgetEnv}, assets[], gameNames[], gameGuard:{month,daily,perGame{}}, gameGrps:{게임:[카테고리]}, gameProducts:{게임:[{id,name,desc,price,grp}]}}`
 
@@ -191,9 +200,12 @@ ledger/
 - AI 조언은 한 달에 한 번 생성해 캐시한다. 화면을 열 때마다 자동으로 다시 부르지 않는다 — 사용자가 "다시 생성"을 눌러야 한다.
 - 스토어 빌드에는 원격 업데이트를 넣지 않는다. 개인 빌드(debug)만 한다.
 - 백업은 자동 미러 + 수동 파일, 두 겹. 자동 복원은 **기록이 하나도 없을 때만**(기존 기록을 덮지 않는다).
+- **DB 는 Supabase**(2026-09-29 사용자 결정, Firebase 아님). 로그인은 선택이고 첫 실행에 강제하지 않는다. 폰이 기준이고 서버는 사용자별 스냅샷 한 벌(정규화된 테이블 아님) — 서버에서 통계를 돌릴 일이 생기면 그때 쪼갠다. 폰과 서버 양쪽에 기록이 있으면 자동으로 합치지 않고 묻는다.
 - 알림 접근 권한은 설명 팝업을 먼저 보여 준 뒤에 설정으로 보낸다.
 
 ## 7. 알려진 할 일 / 주의
+
+- 클라우드 동기화(2026-09-29): Google 로그인은 사용자가 Supabase 대시보드에 Redirect URL·Google 클라이언트를 넣어야 동작한다(§4). 실기기에서 브라우저 → 딥링크 복귀 확인 필요. 이메일 확인 메일은 Supabase 기본 SMTP 라 시간당 몇 통 제한이 있다.
 
 - 알림 감지 실기기 확인 상황(2026-09-26): 삼성 월렛(`₩151,600 결제 완료\n가게`)·토스뱅크 카드(`454원 캐시백 🎉\n151,600원 결제 | 가게\n잔액 0원(...)`) 원문을 `parser.test.js` 에 넣었다. 같은 결제를 삼성 월렛과 토스가 각각 알려서 대기열에 두 번 들어오는데, **사용자가 "중복이어도 상관없다, 어차피 확인하고 등록한다" 고 재확인**(2026-09-26) — 앞으로도 합치지 않는다. **막히면 설정 › 감지 기록 보기(§4 진단 화면)를 먼저 볼 것.** 파서는 `tests/parser.test.js` 의 문구 모음으로 검증한 것이고, 실제 카드사 문구가 다르면 그 원문을 테스트에 추가하고 파서를 고친다.
 - 릴리스 서명은 `keystore.properties` 를 만들어야 켜진다(§1). 스토어 제출은 README "스토어에 올리기" 순서대로.

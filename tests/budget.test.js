@@ -234,4 +234,53 @@ module.exports = async function () {
   c.$("ibScan").click(); await wait(30);
   assert(/AI 키가 없습니다/.test(c.$("toast").textContent), "키 없는 빌드에서 영수증 스캔은 안내만 — 실제: " + c.$("toast").textContent);
   assert(!c.$("themeSheet").classList.contains("open"), "설정 시트를 열지 않아야 함");
+
+  /* 월급날 기준 예산 기간 (2026-09-29): 메뉴에서 월급날 15일 → 15일부터 다음 달 14일까지가 한 기간.
+     기대값은 화면 코드와 별개로 여기서 날짜 계산해 비교한다. */
+  const p = boot({ android: { setBars: () => {} } });
+  await wait(300);
+  const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const isoOf = (dt) => dt.getFullYear() + "-" + pad(dt.getMonth() + 1) + "-" + pad(dt.getDate());
+  const period = (P, off) => {
+    const startOf = (y, m) => { const last = new Date(y, m + 1, 0).getDate(); return new Date(y, m, Math.min(P, last) + off); };
+    let s = startOf(t0.getFullYear(), t0.getMonth());
+    if (s > t0) s = startOf(t0.getFullYear(), t0.getMonth() - 1);
+    const nx = startOf(s.getFullYear(), s.getMonth() + 1), e = new Date(nx.getFullYear(), nx.getMonth(), nx.getDate() - 1);
+    const days = Math.round((nx - s) / 864e5), idx = Math.round((t0 - s) / 864e5);
+    return { s, e, days, idx, left: days - idx, label: (s.getMonth() + 1) + "월 " + s.getDate() + "일 ~ " + (e.getMonth() + 1) + "월 " + e.getDate() + "일" };
+  };
+  const pp = period(15, 0);
+  const psIso = isoOf(pp.s), preIso = isoOf(new Date(pp.s.getFullYear(), pp.s.getMonth(), pp.s.getDate() - 1));
+  const addTxP = async (date, amt) => { p.$("add").click(); await wait(30); p.$("fDate").value = date; p.$("fAmt").value = String(amt); p.$("fSave").click(); await wait(80); };
+  await addTxP(today, 10000);
+  await addTxP(psIso, 30000);  // 기간 첫날 → 기간 안 (지난달일 수도)
+  await addTxP(preIso, 50000); // 기간 전날 → 기간 밖
+  await wait(500);
+  p.d.querySelector('[data-tab="budget"]').click(); await wait(30);
+  p.$("bt").value = "300000"; p.$("bt").dispatchEvent(new p.w.Event("input", { bubbles: true })); await wait(30);
+  assert(/이달 남은 돈/.test(p.$("todayCard").textContent), "월급날 설정 전에는 달력 한 달 기준");
+  p.$("themeBtn").click(); await wait(30);
+  assert(p.$("paydaySel").value === "1" && !p.$("payNext").checked, "기본 월급날은 1일(달력 기준)");
+  p.$("paydaySel").value = "15"; p.$("paydaySel").dispatchEvent(new p.w.Event("change")); await wait(100);
+  assert(p.$("paydayNote").textContent.includes(pp.label), "설정 안내에 이번 기간 '" + pp.label + "' — 실제: " + p.$("paydayNote").textContent);
+  p.$("tDone").click(); await wait(30);
+  const pBefore = psIso === today ? 0 : 30000, pSpent = psIso === today ? 40000 : 10000;
+  const pAllow = Math.floor((300000 - pBefore) / pp.left), pRest = pAllow - pSpent;
+  const ptc = p.$("todayCard").textContent, fmtK = (v) => new Intl.NumberFormat("ko-KR").format(Math.abs(v)) + "원";
+  assert(ptc.includes("기간 남은 돈") && ptc.includes(pp.label), "오늘 카드에 기간 표시 — 실제: " + ptc);
+  assert(ptc.includes(fmtK(pAllow)), "하루 기준 " + pAllow + " (기간 " + pp.left + "일 남음) — 실제: " + ptc);
+  assert(ptc.includes(fmtK(pRest)), "오늘 남은 돈 " + pRest + " — 실제: " + ptc);
+  assert(ptc.includes(fmtK(300000 - pBefore - pSpent) + " · " + pp.left + "일"), "기간 남은 돈·남은 날 — 실제: " + ptc);
+  const pv = p.$("view").textContent;
+  assert(pv.includes("이번 기간 예산 · " + pp.label) && pv.includes((pp.idx + 1) + "일째"), "예산 탭 머리글·경과일이 기간 기준 — 실제: " + pv.slice(0, 200));
+  /* 월급 다음날부터: 시작이 하루 밀린다 */
+  const pq = period(15, 1);
+  p.$("themeBtn").click(); await wait(30);
+  p.$("payNext").checked = true; p.$("payNext").dispatchEvent(new p.w.Event("change")); await wait(100);
+  assert(p.$("paydayNote").textContent.includes(pq.label), "다음날부터 → '" + pq.label + "' — 실제: " + p.$("paydayNote").textContent);
+  await wait(500); // save 디바운스
+  const pcfg = JSON.parse(p.w.localStorage.getItem("gb:config/main"));
+  assert(pcfg.budget.payday === 15 && pcfg.budget.payNext === true, "월급날 설정이 cfg.budget 에 저장 — 실제: " + JSON.stringify(pcfg.budget));
+  p.$("tDone").click();
+  assert(p.errors.length === 0, "스크립트 오류: " + p.errors.join(" / "));
 };

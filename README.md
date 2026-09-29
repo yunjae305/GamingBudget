@@ -126,6 +126,15 @@ git push
 
 게임 탭 맨 위 캐릭터 카드에서 **물어보기**를 누르면 채팅 화면이 열립니다. "이번 달 월정액 더 사도 돼?" 처럼 물어보면 이번 달 게임 지출·한도·결제 기록·상품 가격표를 보고 답합니다. 질문을 보낼 때 그 데이터가 Gemini 로 갑니다(`PRIVACY.md`).
 
+## 1.8 부터 패키지 이름이 바뀌었습니다 (기록 옮기기)
+
+1.8(versionCode 9)부터 앱의 패키지 이름이 `net.nn33.ledger` → `app.gamingbudget` 입니다. 안드로이드는 이걸 **다른 앱**으로 보기 때문에 옛 앱 위에 덮어쓰기 설치가 되지 않고 새 앱으로 깔리며, 기록·알림 접근 허용·알림 권한이 자동으로 넘어오지 않습니다. 순서:
+
+1. **옛 앱(1.7)** 에서 메뉴 › 클라우드 동기화에 로그인해 "서버에 올렸습니다" 를 확인하거나, 메뉴 › **백업 파일 내보내기**.
+2. 1.8 APK 설치 (두 앱이 나란히 있어도 됩니다).
+3. **새 앱** 에서 같은 계정으로 로그인 → 서버 기록을 받아옵니다. 또는 메뉴 › 백업 파일 가져오기.
+4. 설정 › 알림 접근에서 새 앱을 켜고(옛 앱은 꺼도 됨), 하루 예산 알림도 다시 켭니다. 확인이 끝나면 옛 앱을 지웁니다.
+
 ## 클라우드 동기화 (선택)
 
 기본은 폰 안에만 저장입니다. 메뉴(왼쪽 위 바 3개) › **클라우드 동기화** 에서 로그인하면 전체 기록 한 벌이 서버(Supabase, 서울 리전)에도 저장됩니다.
@@ -136,7 +145,7 @@ git push
 - 서버에 있는 것은 본인 계정만 읽을 수 있습니다(행 단위 권한). 앱에 들어 있는 키는 공개용 키라 저장소에 있어도 됩니다.
 
 **Supabase 대시보드에서 한 번 해 둘 것** (프로젝트 `ledger`, 코드로 못 하는 부분):
-1. Authentication › URL Configuration › **Redirect URLs** 에 `net.nn33.ledger://login` 추가 (Google 로그인 뒤 앱으로 돌아오는 주소).
+1. Authentication › URL Configuration › **Redirect URLs** 에 `gamingbudget://login` 추가 (Google 로그인 뒤 앱으로 돌아오는 주소).
 2. Authentication › Sign In / Providers › **Google** 켜고 Google Cloud 콘솔에서 만든 OAuth 클라이언트(웹 애플리케이션, 리디렉션 URI `https://jxjmrxusumcbfgwzqdrd.supabase.co/auth/v1/callback`)의 클라이언트 ID·보안 비밀번호 붙여넣기.
 3. (선택) Authentication › Emails 에서 확인 메일 문구를 한국어로.
 

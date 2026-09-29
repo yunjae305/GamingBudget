@@ -1,4 +1,4 @@
-package net.nn33.ledger;
+package app.gamingbudget;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

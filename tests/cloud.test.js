@@ -104,12 +104,12 @@ module.exports = async function () {
   g.w.fetch = srv.fetch;
   await wait(300);
   g.$("themeBtn").click(); await wait(30);
-  await g.w.__oauth("net.nn33.ledger://login#access_token=at2&expires_in=3600&refresh_token=rt2&token_type=bearer&type=signup");
+  await g.w.__oauth("gamingbudget://login#access_token=at2&expires_in=3600&refresh_token=rt2&token_type=bearer&type=signup");
   await wait(200);
   const gs = JSON.parse(g.w.localStorage.getItem("gb:cloud/session"));
   assert(gs.access_token === "at2" && gs.refresh_token === "rt2" && gs.uid === "uid-1" && gs.email === "google@example.com", "딥링크 토큰 → 세션 + /user 로 이메일 — 실제: " + JSON.stringify(gs));
   assert(g.$("cloudCard").textContent.includes("google@example.com"), "Google 계정 이메일 표시");
-  await g.w.__oauth("net.nn33.ledger://login#error=access_denied&error_description=cancelled");
+  await g.w.__oauth("gamingbudget://login#error=access_denied&error_description=cancelled");
   await wait(50);
   assert(/로그인 실패/.test(g.$("toast").textContent), "오류 딥링크는 안내만");
   assert(JSON.parse(g.w.localStorage.getItem("gb:cloud/session")).access_token === "at2", "오류 딥링크가 기존 세션을 지우면 안 됨");

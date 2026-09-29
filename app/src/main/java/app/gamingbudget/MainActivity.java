@@ -1,4 +1,4 @@
-package net.nn33.ledger;
+package app.gamingbudget;
 
 import android.annotation.SuppressLint;
 import android.content.ComponentName;
@@ -148,7 +148,7 @@ public class MainActivity extends AppCompatActivity {
         web.evaluateJavascript("window.__cameraShot&&window.__cameraShot('image/jpeg','" + b64 + "')", null);
     }
 
-    /** Google 로그인 딥링크(net.nn33.ledger://login#access_token=…). 브라우저가 이 URL 로 앱을 부르면
+    /** Google 로그인 딥링크(gamingbudget://login#access_token=…). 브라우저가 이 URL 로 앱을 부르면
      *  페이지의 __oauth(url) 에 그대로 넘긴다 — 토큰은 URL 조각(#)에 있어 서버·로그엔 남지 않는다.
      *  singleTask 라 이미 떠 있던 액티비티가 onNewIntent 로 받고, 죽어 있었으면 onCreate 의 getIntent() 로 받는다. */
     private String pendingLink;
@@ -156,7 +156,7 @@ public class MainActivity extends AppCompatActivity {
     private void handleLink(Intent intent) {
         if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
         Uri u = intent.getData();
-        if (u == null || !"net.nn33.ledger".equals(u.getScheme())) return;
+        if (u == null || !"gamingbudget".equals(u.getScheme())) return;
         pendingLink = u.toString();
         intent.setData(null); // 회전 등으로 다시 만들어질 때 같은 토큰을 두 번 넘기지 않게
         deliverLink();

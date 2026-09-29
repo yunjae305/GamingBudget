@@ -37,7 +37,7 @@ ledger/
 - **개인(debug) 빌드만** 원격 업데이트를 한다. 앱이 켜질 때 `update_url`에서 최신 `index.html`을 받아 `files/live/index.html`을 교체한다. **스토어(release) 빌드는 안 한다** — 원격에서 받은 코드가 JS 브리지를 만지는 길을 막기 위해서. 스토어용 갱신은 스토어 배포로.
 - APK 의 versionCode 가 바뀌면(설치·업데이트) 항상 APK 안의 원본을 `live/` 에 다시 복사한다. 자동 백업이 옛 `live/` 를 되살리지 못하도록 백업 규칙에서 `live/` 는 제외.
 - 켠 뒤 12초 안에 받아지면 즉시 reload, 아니면 다음 실행 때 적용.
-- 2KB 미만이거나 앞 400바이트에 `<title>가계부</title>` 이 없으면 무시. 임시 파일에 받은 뒤 rename.
+- 2KB 미만이거나 앞 400바이트에 `<title>가계부</title>` 이 없으면 무시. 임시 파일에 받은 뒤 rename. **그래서 `<title>` 은 `<head>` 맨 앞(charset 바로 다음)에 둔다** — 2026-09-29 에 CSP 메타를 그 앞에 넣었다가 폰이 모든 업데이트를 조용히 버린 적이 있다. `tests/run.js` 의 "원격 업데이트 유효성" 이 이를 검사한다.
 - WebView 는 `appassets.androidplatform.net` 밖으로는 절대 이동하지 않는다(`shouldOverrideUrlLoading` 이 외부 링크를 브라우저로 넘김). 파일·content 접근도 꺼 둠.
 - 내부 저장소와 assets 모두 `https://appassets.androidplatform.net` 오리진으로 서빙(WebViewAssetLoader). **오리진이 고정이라 localStorage 데이터가 업데이트 후에도 유지된다.** 이 오리진을 바꾸면 사용자 데이터가 사라지니 절대 바꾸지 말 것.
 - `update_url` 은 `https://raw.githubusercontent.com/yunjae305/GamingBudget/main/app/src/main/assets/index.html` (공개 저장소, 2026-09-21 설정). `OWNER/REPO` 가 들어 있으면 업데이트 확인을 건너뛴다.

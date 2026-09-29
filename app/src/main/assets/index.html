@@ -124,7 +124,7 @@ main{padding-top:10px;padding-bottom:calc(72px + calc(var(--sab) / var(--zoom, 1
 .track i.warn{background:var(--orange)} .track i.over{background:var(--red)}
 
 /* 입력 필드 (행 안) */
-.row input[type=text],.row input[type=email],.row input[type=password],.row input[type=date],.row input[type=time],.row select{
+.row input[type=text],.row input[type=email],.row input[type=password],.row input[type=date],.row input[type=month],.row input[type=time],.row select{
   flex:1;min-width:0;border:none;background:transparent;text-align:right;padding:0;
   font-variant-numeric:tabular-nums;
 }
@@ -747,7 +747,7 @@ let cfg={budget:{total:0,cat:{}},plan:{income:0,envelopes:[
   {id:uid(),name:"고정지출",pct:40,saving:false},
   {id:uid(),name:"생활비",pct:25,saving:false},
   {id:uid(),name:"저축·투자",pct:25,saving:true},
-  {id:uid(),name:"비상금",pct:10,saving:true}],goal:{name:"",target:0,base:0}},assets:[],
+  {id:uid(),name:"비상금",pct:10,saving:true}],goal:{name:"",target:0,base:0,due:""}},assets:[],
   gameNames:["명조","젠레스 존 제로"],gameGuard:{month:0,daily:0,perGame:{}},gameGrps:{},gameProducts:{}};
 let summary={},gsum={},ym=todayISO().slice(0,7),txs=[],games=[],inbox=[],tab="tx",listMode="cal",editId=null,gEditId=null,fromInbox=null,fType="expense";
 
@@ -1136,11 +1136,11 @@ const ICONS={
   tx:'<path d="M4 6.5h16M4 12h16M4 17.5h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none"/>',
   budget:'<rect x="3" y="6" width="18" height="13" rx="3" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M3 10h18" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="14.5" r="1.3" fill="currentColor"/>',
   stat:'<path d="M12 3a9 9 0 109 9h-9V3z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M14 3.4A9 9 0 0120.6 10H14V3.4z" fill="currentColor"/>',
-  asset:'<path d="M3 8.5A2.5 2.5 0 015.5 6H18a3 3 0 013 3v7a3 3 0 01-3 3H6a3 3 0 01-3-3V8.5z" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M3 9h12" stroke="currentColor" stroke-width="1.6"/><circle cx="17.5" cy="13.5" r="1.4" fill="currentColor"/>',
+  goal:'<circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="4.6" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>',
   plan:'<circle cx="12" cy="6" r="2.2" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="6" cy="18" r="2.2" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="18" cy="18" r="2.2" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 8.2v3.3M12 11.5L7.4 16M12 11.5L16.6 16" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>',
   game:'<rect x="2.4" y="7" width="19.2" height="10" rx="5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M7 10v4M5 12h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16.2" cy="11" r="1.15" fill="currentColor"/><circle cx="18.4" cy="13.4" r="1.15" fill="currentColor"/>'
 };
-const TABS=[["tx","내역"],["budget","예산"],["stat","통계"],["game","게임"],["asset","자산"],["plan","배분"]];
+const TABS=[["tx","내역"],["budget","예산"],["stat","통계"],["game","게임"],["goal","목표"],["plan","배분"]];
 $("tabbar").innerHTML=TABS.map(([k,n])=>
   '<button role="tab" data-tab="'+k+'"><svg viewBox="0 0 24 24">'+ICONS[k]+'</svg>'+n+'</button>').join("");
 $("tabbar").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
@@ -1160,7 +1160,7 @@ function renderTop(){
     $("sIn").textContent=fmt(t.i);$("sOut").textContent=fmt(t.e);$("sSav").textContent=fmt(t.s);
     const net=t.i-t.e-t.s,el=$("sNet");
     el.textContent=fmt(net)+"원";el.style.color=net<0?"var(--red)":"var(--label)";
-    /* 앱을 열면 오늘 쓸 수 있는 돈이 가장 먼저 보이게 — 내역 탭에서만. 통계·자산·배분은 수입/지출/저축만. */
+    /* 앱을 열면 오늘 쓸 수 있는 돈이 가장 먼저 보이게 — 내역 탭에서만. 통계는 수입/지출/저축만. */
     syncBudgetFromPlan();
     const db=dailyBudget(),tr=$("todayRow"),st=$("sToday");
     if(tab!=="tx")tr.style.display="none";
@@ -1187,7 +1187,7 @@ addEventListener("scroll",()=>{$("nav").classList.toggle("scrolled",scrollY>6);}
 const view=()=>$("view");
 function render(){
   renderTop();
-  ({tx:renderTx,budget:renderBudget,stat:renderStat,game:renderGame,asset:renderAsset,plan:renderPlan})[tab]();
+  ({tx:renderTx,budget:renderBudget,stat:renderStat,game:renderGame,goal:renderGoal,plan:renderPlan})[tab]();
 }
 function card(inner,cls){return '<div class="card'+(cls?" "+cls:"")+'">'+inner+'</div>';}
 function hdr(t){return '<p class="hdr">'+t+'</p>';}
@@ -1390,7 +1390,8 @@ function aiPrompt(m){
     "총지출 "+fmt(t.e)+"원, 총수입 "+fmt(t.i)+"원, 총저축 "+fmt(t.s)+"원\n"+
     (budget?"예산 "+fmt(budget)+"원 중 "+Math.round(t.e/budget*100)+"% 사용\n":"예산 미설정\n")+
     "카테고리별 지출:\n"+lines+"\n"+
-    (prev?"전달("+prevKey+") 지출 "+fmt(prev.e)+"원 대비 "+(prev.e?Math.round((t.e-prev.e)/prev.e*100):0)+"%\n":"전달 비교 데이터 없음\n");
+    (prev?"전달("+prevKey+") 지출 "+fmt(prev.e)+"원 대비 "+(prev.e?Math.round((t.e-prev.e)/prev.e*100):0)+"%\n":"전달 비교 데이터 없음\n")+
+    (cfg.plan.goal.target?(function(){const st=goalStats();return "저축 목표 "+fmt(cfg.plan.goal.target)+"원(기한 "+(cfg.plan.goal.due||"미정")+"), 남은 돈 "+fmt(st.left)+"원, 매달 필요 "+fmt(st.need)+"원\n";})():"");
 }
 async function aiGenerate(){
   if(aiBusy)return;
@@ -1401,7 +1402,8 @@ async function aiGenerate(){
     const url="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(aiModel())+":generateContent?key="+encodeURIComponent(key);
     const body={
       systemInstruction:{parts:[{text:aiPersona()+" 아래 이번 달 가계부 숫자를 보고 JSON으로만 답해. "+
-        '형식: {"comment":"이번 달 지출에 대한 2~3문장 총평","advice":"다음 달 소비 조언 2~3문장"}. 다른 말은 절대 덧붙이지 마.'}]},
+        '형식: {"comment":"이번 달 지출에 대한 2~3문장 총평","advice":"다음 달 소비 조언 2~3문장"}. '+
+        "칭찬만 하지 마. 예산을 넘겼거나 저축이 목표에 못 미치거나 한 카테고리가 과하면 돌려 말하지 말고 직설적으로 쓴소리를 해. 다른 말은 절대 덧붙이지 마."}]},
       contents:[{role:"user",parts:[{text:aiPrompt(ym)}]}],
       generationConfig:{responseMimeType:"application/json",temperature:0.9}
     };
@@ -1534,69 +1536,120 @@ function renderStat(){
   renderAiCard();
 }
 
-/* ── 자산 ── */
-function renderAsset(){
-  const v=view();const TYPES=["입출금","저축","투자","대출","부동산","기타"];
-  const total=()=>cfg.assets.reduce((a,x)=>a+(x.type==="대출"?-x.amount:x.amount),0);
-  v.innerHTML=hdr("자산 구성")+'<div class="card" id="adonut"></div>'+
-    hdr("항목")+'<div id="alist"></div>'+
-    '<div class="linkrow"><button class="btn tint" id="aadd">항목 추가</button></div>'+
-    '<p class="note">가운데 숫자는 순자산(대출을 뺀 합계)이고, 비율은 대출을 뺀 자산끼리 나눈 것입니다.</p>'+
-    hdr("저축 목표")+
-    card('<div class="row"><span class="t">이름</span><input id="gn" type="text" placeholder="예: 비상금" value="'+esc(cfg.plan.goal.name)+'"></div>'+
-      '<div class="row"><span class="t">목표 금액</span><input id="gt" type="text" inputmode="numeric" placeholder="0" value="'+moneyStr(cfg.plan.goal.target)+'"></div>'+
-      '<div class="row"><span class="t">시작 적립금</span><input id="gb" type="text" inputmode="numeric" placeholder="0" value="'+moneyStr(cfg.plan.goal.base)+'"></div>'+
-      '<div style="padding:12px 16px 16px"><div class="track" style="height:8px"><i id="gf"></i></div><div id="gl" style="font-size:15px"></div></div>')+
-    '<p class="note">기록한 저축이 자동으로 쌓입니다. 배분 탭에서 "저축으로 계산" 을 켠 봉투 금액으로 달성 시점을 어림합니다.</p>';
-  /* 저축 목표 (배분 탭에서 옮겨 옴, 2026-09-24) */
-  function goalLine(){
-    const g=cfg.plan.goal,saved=totalSaved(),fill=$("gf"),line=$("gl");
-    if(!fill||!line)return;
-    const monthly=cfg.plan.envelopes.filter(e=>e.saving).reduce((a,e)=>a+envAmt(e),0);
-    fill.style.width=(g.target?Math.min(100,saved/g.target*100):0)+"%";
-    if(!g.target){line.innerHTML='<span style="color:var(--label2)">목표 금액을 넣으면 달성 시점을 계산합니다.</span>';return;}
-    const left=Math.max(0,g.target-saved);
-    if(!left){line.innerHTML='<b>목표를 채웠습니다.</b> 모은 돈 '+fmt(saved)+'원';return;}
-    let t='<b class="tnum">'+fmt(saved)+'원 모음 · '+fmt(left)+'원 남음</b><br>';
-    if(monthly>0){
-      const m=Math.ceil(left/monthly),d=new Date();d.setDate(1);d.setMonth(d.getMonth()+m);
-      t+='<span style="color:var(--label2)">매달 '+fmt(monthly)+'원이면 약 '+m+'개월 뒤, '+d.getFullYear()+'년 '+(d.getMonth()+1)+'월쯤 채워집니다.</span>';
-    }else t+='<span style="color:var(--label2)">배분 탭에서 저축 봉투를 켜면 달성 시점이 나옵니다.</span>';
-    line.innerHTML=t;
+/* ── 목표 ── 저축 목표 금액 + 언제까지. 기록된 저축·지출을 보고 매달 얼마씩 모아야 하는지 계산하고, AI 가 조언한다
+   (사용자 결정 2026-09-29: 자산 항목·원그래프 탭을 목표 기록 탭으로 바꿈). goal={name,target,base,due:"YYYY-MM"} */
+function monthsUntil(due){
+  if(!/^\d{4}-\d{2}$/.test(due||""))return null;
+  const [y,m]=due.split("-").map(Number),now=new Date();
+  return (y-now.getFullYear())*12+(m-(now.getMonth()+1))+1; /* 이번 달 포함해 남은 달 수 */
+}
+function goalStats(){
+  const g=cfg.plan.goal,saved=totalSaved(),left=Math.max(0,(g.target||0)-saved),months=monthsUntil(g.due);
+  const need=(months&&months>0&&left>0)?Math.ceil(left/months):0;
+  const tm=todayISO().slice(0,7),thisS=(summary[tm]&&summary[tm].s)||0;
+  const keys=Object.keys(summary).filter(k=>k<tm).sort().slice(-3),avg3=keys.length?Math.round(keys.reduce((a,k)=>a+((summary[k].s)||0),0)/keys.length):0;
+  return {saved,left,months,need,thisS,avg3};
+}
+function renderGoal(){
+  const v=view(),g=cfg.plan.goal;
+  v.innerHTML=hdr("목표")+
+    card('<div class="row"><span class="t">이름</span><input id="gn" type="text" placeholder="예: 비상금, 여행" value="'+esc(g.name)+'"></div>'+
+      '<div class="row"><span class="t">목표 금액</span><input id="gt" type="text" inputmode="numeric" placeholder="0" value="'+moneyStr(g.target)+'"></div>'+
+      '<div class="row"><span class="t">언제까지</span><input id="gd" type="month" value="'+esc(g.due||"")+'"></div>'+
+      '<div class="row"><span class="t">이미 모은 돈</span><input id="gb" type="text" inputmode="numeric" placeholder="0" value="'+moneyStr(g.base)+'"></div>')+
+    '<p class="note">가계부에 저축으로 기록한 금액이 "이미 모은 돈" 위에 자동으로 쌓입니다.</p>'+
+    hdr("진행")+'<div class="card" id="goalCard"></div>'+
+    hdr(esc(aiName())+"의 조언")+aiCardHtml().replace('id="aiBubble"','id="goalBubble"')+
+    '<p class="note">이번 달 수입·지출·저축과 목표 숫자를 보고 다음 달에 얼마를 모아야 할지 짚어 줍니다. 필요하면 쓴소리도 합니다. 한 달에 한 번 생성하고, 목표를 바꾸면 다시 만듭니다.</p>';
+  function paint(){
+    const st=goalStats(),el=$("goalCard");if(!el)return;
+    if(!g.target){el.innerHTML='<p class="empty">목표 금액을 넣으면<br>진행 상황과 매달 필요한 저축액이 보입니다.</p>';return;}
+    const pc=Math.min(100,st.saved/g.target*100);
+    let rows='<div style="padding:12px 16px 4px"><div class="track" style="height:8px"><i style="width:'+pc+'%"></i></div>'+
+      '<div class="tnum" style="display:flex;justify-content:space-between;font-size:13px;color:var(--label2)"><span>'+Math.round(pc)+'%</span><span>'+fmt(g.target)+'원</span></div></div>'+
+      '<div class="row"><span class="t">모은 돈</span><span class="val tnum">'+fmt(st.saved)+'원</span></div>'+
+      '<div class="row"><span class="t">남은 돈</span><span class="val tnum">'+fmt(st.left)+'원</span></div>';
+    if(!st.left)rows+='<div class="row"><span class="t" style="color:var(--green);font-weight:600">목표를 채웠습니다</span></div>';
+    else if(st.months===null)rows+='<div class="row"><span class="t" style="color:var(--label2)">"언제까지"를 정하면 매달 필요한 저축액을 계산합니다</span></div>';
+    else if(st.months<=0)rows+='<div class="row"><span class="t" style="color:var(--red)">목표 시점이 지났습니다. 날짜를 다시 정해 주세요</span></div>';
+    else{
+      const ok=st.thisS>=st.need;
+      rows+='<div class="row"><span class="t">남은 기간</span><span class="val tnum">'+st.months+'개월</span></div>'+
+        '<div class="row"><span class="t">매달 필요</span><span class="val tnum" style="font-weight:700">'+fmt(st.need)+'원</span></div>'+
+        '<div class="row"><span class="t">이번 달 저축</span><span class="val tnum" style="color:'+(ok?"var(--green)":"var(--red)")+'">'+fmt(st.thisS)+'원'+(ok?" · 충분":" · "+fmt(st.need-st.thisS)+"원 부족")+'</span></div>'+
+        (st.avg3?'<div class="row"><span class="t">최근 3개월 평균 저축</span><span class="val tnum">'+fmt(st.avg3)+'원</span></div>':'');
+    }
+    el.innerHTML=rows;
   }
-  $("gn").addEventListener("input",e=>{cfg.plan.goal.name=e.target.value;saveCfg();});
-  bindMoney($("gt"),x=>{cfg.plan.goal.target=x;goalLine();saveCfg();});
-  bindMoney($("gb"),x=>{cfg.plan.goal.base=x;goalLine();saveCfg();});
-  goalLine();
-  /* 원그래프: 항목별 비율 (사용자 요청, 2026-09-24). 금액을 고치는 중에도 바로 따라간다. */
-  const refresh=()=>{
-    const ent=cfg.assets.filter(a=>a.type!=="대출"&&a.amount>0).map((a,i)=>[a.name||(a.type+" "+(i+1)),a.amount]).sort((x,y)=>y[1]-x[1]);
-    const loans=cfg.assets.filter(a=>a.type==="대출"&&a.amount>0).reduce((x,a)=>x+a.amount,0);
-    $("adonut").innerHTML=ent.length?donutHtml(ent,"순자산",fmt(total()),"자산 항목별 비율")+
-      (loans?'<div class="row"><span class="t" style="color:var(--label2)">대출</span><span class="val tnum" style="color:var(--red)">−'+fmt(loans)+'원</span></div>':''):
-      '<p class="empty">통장·예금·투자·대출을 등록하면<br>항목별 비율과 순자산이 보입니다.</p>';
-  };
-  const host=$("alist");
-  cfg.assets.forEach((a,i)=>{
-    const c=document.createElement("div");c.className="card";
-    c.innerHTML='<div class="row"><span class="t">종류</span><select>'+TYPES.map(t=>'<option'+(t===a.type?" selected":"")+'>'+t+'</option>').join("")+'</select></div>'+
-      '<div class="row"><span class="t">이름</span><input class="nm" type="text" placeholder="예: 주거래 통장" value="'+esc(a.name)+'"></div>'+
-      '<div class="row"><span class="t">금액</span><input class="am" type="text" inputmode="numeric" placeholder="0" value="'+moneyStr(a.amount)+'"></div>'+
-      '<button class="row tap" style="width:100%;text-align:left"><span class="t red">삭제</span></button>';
-    const sel=c.querySelector("select"),nm=c.querySelector(".nm"),am=c.querySelector(".am"),del=c.querySelector("button");
-    sel.addEventListener("change",()=>{a.type=sel.value;saveCfg();refresh();});
-    nm.addEventListener("input",()=>{a.name=nm.value;saveCfg();refresh();});
-    bindMoney(am,v=>{a.amount=v;saveCfg();refresh();});
-    del.addEventListener("click",()=>{cfg.assets.splice(i,1);saveCfg();renderAsset();});
-    host.appendChild(c);
-  });
-  $("aadd").addEventListener("click",()=>{cfg.assets.push({type:"입출금",name:"",amount:0});saveCfg();renderAsset();});
-  refresh();
+  const changed=()=>{saveCfg();paint();renderGoalAi();};
+  $("gn").addEventListener("input",e=>{g.name=e.target.value;saveCfg();});
+  bindMoney($("gt"),x=>{g.target=x;changed();});
+  bindMoney($("gb"),x=>{g.base=x;changed();});
+  $("gd").addEventListener("change",e=>{g.due=e.target.value;changed();});
+  paint();renderGoalAi();
+}
+/* 목표 조언 (Gemini). 캐시 gb:ai/goal/YYYY-MM 에 목표 서명(target·due·base)을 같이 두고, 바뀌면 다시 만들게 한다. */
+const goalSig=()=>[cfg.plan.goal.target||0,cfg.plan.goal.due||"",cfg.plan.goal.base||0].join("|");
+function goalCached(){try{const v=JSON.parse(localStorage.getItem("gb:ai/goal/"+todayISO().slice(0,7))||"null");return v&&v.sig===goalSig()?v:null;}catch(e){return null;}}
+function goalPrompt(){
+  const g=cfg.plan.goal,st=goalStats(),tm=todayISO().slice(0,7),t=summary[tm]||{i:0,e:0,s:0};
+  const ct=(tm===ym?catTotals("expense"):[]).slice(0,6).map(c=>"- "+c[0]+" "+fmt(c[1])+"원").join("\n");
+  const budget=(cfg.budget&&cfg.budget.total)||0;
+  return "[목표] "+(g.name||"저축 목표")+" "+fmt(g.target)+"원, 기한 "+(g.due||"미정")+", 지금까지 "+fmt(st.saved)+"원, 남은 돈 "+fmt(st.left)+"원, 남은 기간 "+(st.months===null?"미정":st.months+"개월")+", 매달 필요 "+fmt(st.need)+"원\n"+
+    "[이번 달 "+tm+"] 수입 "+fmt(t.i)+"원, 지출 "+fmt(t.e)+"원, 저축 "+fmt(t.s)+"원"+(budget?", 생활비 예산 "+fmt(budget)+"원":"")+"\n"+
+    "[최근 3개월 평균 저축] "+fmt(st.avg3)+"원\n"+
+    (ct?"[이번 달 카테고리별 지출 상위]\n"+ct+"\n":"");
+}
+let goalBusy=false,goalErr=null;
+async function goalGenerate(){
+  if(goalBusy)return;
+  const key=aiKey();if(!key){toast(noKeyMsg);return;}
+  goalBusy=true;goalErr=null;renderGoalAi("loading");
+  try{
+    const url="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(aiModel())+":generateContent?key="+encodeURIComponent(key);
+    const body={
+      systemInstruction:{parts:[{text:aiPersona()+" 너는 사용자의 저축 목표 코치야. 아래 숫자만 근거로 JSON으로만 답해. "+
+        '형식: {"verdict":"지금 흐름으로 목표를 이룰 수 있는지 한 문장 판정","monthly":다음 달 저축 권고 금액(원, 숫자만),"advice":"어느 카테고리에서 얼마를 줄여 그 금액을 만들지 2~4문장"}. '+
+        "칭찬만 하지 마. 이 흐름이면 목표를 못 이루거나 지출이 과하면 돌려 말하지 말고 직설적으로 쓴소리를 해. 금액은 반드시 원 단위 숫자로. 다른 말은 덧붙이지 마."}]},
+      contents:[{role:"user",parts:[{text:goalPrompt()}]}],
+      generationConfig:{responseMimeType:"application/json",temperature:0.8}
+    };
+    const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){
+      if(res.status===403)throw new Error("API 키를 확인해 주세요.");
+      if(res.status===429)throw new Error("요청이 너무 많습니다. 잠시 후 다시 시도하세요.");
+      throw new Error("요청에 실패했습니다 ("+res.status+").");
+    }
+    const json=await res.json();
+    const parts=json&&json.candidates&&json.candidates[0]&&json.candidates[0].content&&json.candidates[0].content.parts;
+    const text=parts&&parts[0]&&parts[0].text;
+    if(!text)throw new Error("응답을 읽지 못했습니다.");
+    let out;try{out=JSON.parse(text);}catch(e){throw new Error("응답 형식이 올바르지 않습니다.");}
+    if(!out||!out.verdict)throw new Error("응답 형식이 올바르지 않습니다.");
+    const monthly=parseInt(String(out.monthly||"").replace(/[^0-9]/g,""),10)||0;
+    try{localStorage.setItem("gb:ai/goal/"+todayISO().slice(0,7),JSON.stringify({sig:goalSig(),at:new Date().toISOString(),verdict:String(out.verdict).slice(0,300),monthly,advice:String(out.advice||"").slice(0,500)}));}catch(e){}
+  }catch(e){goalErr=String((e&&e.message)||e);}
+  goalBusy=false;renderGoalAi();
+}
+function renderGoalAi(state){
+  const bub=$("goalBubble");if(!bub)return;
+  const nm=esc(aiName()),btn=(id,label)=>'<button class="btn tint" id="'+id+'" style="height:40px;font-size:14px;width:auto;padding:0 16px;display:inline-block">'+label+'</button>';
+  if(!aiKey()){bub.innerHTML='<p style="font-weight:600">'+nm+'</p><p style="color:var(--label2)">'+noKeyMsg+'</p>';return;}
+  if(!cfg.plan.goal.target){bub.innerHTML='<p style="font-weight:600">'+nm+'</p><p style="color:var(--label2)">목표 금액과 기한을 먼저 정해 주세요.</p>';return;}
+  if(state==="loading"){bub.innerHTML='<p style="font-weight:600">'+nm+'</p><p style="color:var(--label2)">목표와 이번 달 흐름을 살펴보는 중…</p>';return;}
+  if(goalErr){bub.innerHTML='<p style="font-weight:600">'+nm+'</p><p style="color:var(--red)">'+esc(goalErr)+'</p>'+btn("goalRetryBtn","다시 시도");$("goalRetryBtn").addEventListener("click",goalGenerate);return;}
+  const note=goalCached();
+  if(!note){bub.innerHTML='<p style="font-weight:600">'+nm+'</p><p style="color:var(--label2)">다음 달에 얼마를 모아야 할지 봐 드릴까요?</p>'+btn("goalGoBtn","조언 받기");$("goalGoBtn").addEventListener("click",goalGenerate);return;}
+  bub.innerHTML='<p style="font-weight:600">'+nm+'</p><p><b>'+esc(note.verdict)+'</b></p>'+
+    (note.monthly?'<p class="tnum">다음 달 저축 권고: <b>'+fmt(note.monthly)+'원</b></p>':'')+
+    (note.advice?'<p style="color:var(--label2)">'+esc(note.advice)+'</p>':'')+
+    '<button class="row tap" id="goalRegenBtn" style="padding:0;min-height:0;color:var(--blue);font-size:13px;width:auto">다시 생성</button>';
+  $("goalRegenBtn").addEventListener("click",goalGenerate);
 }
 
 /* ── 배분 ── 실수령액을 봉투에 나눈다. 봉투마다 "%" 또는 "원" 을 골라 숫자만 기입하면 바로 막대에 반영된다
    (사용자 결정, 2026-09-24: 슬라이더 없음, 기입식). 합계는 100% 이내 — 넘치는 입력은 남은 몫까지만 받는다(§6).
-   고른 봉투(기본: 생활비)를 예산 탭의 총 예산으로 보내는 버튼이 있다. 저축 목표는 자산 탭으로 옮겼다. */
+   저축 목표는 목표 탭에 있다. */
 /* 실수령액을 비워 두면 "오늘이 속한 달" 의 수입 합계를 쓴다 — 보는 달(ym)에 따라 총 예산이 바뀌면 안 되니까 */
 const thisMonthIncome=()=>{const k=todayISO().slice(0,7);return k===ym?totals().i:((summary[k]&&summary[k].i)||0);};
 const planBase=()=>cfg.plan.income||thisMonthIncome()||0;
@@ -2430,7 +2483,7 @@ async function sendChat(){
     const url="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(aiModel())+":generateContent?key="+encodeURIComponent(key);
     const body={
       systemInstruction:{parts:[{text:aiPersona()+" 너는 사용자의 게임 과금 계획 상담역이야. 아래 데이터를 근거로 3~6문장으로 짧고 구체적으로 답해. "+
-        "먼저 한도·이번 달 지출 대비 상황을 짚고, 금액은 원 단위 숫자로 말해. 무리한 과금을 부추기지 말고, 데이터에 없는 게임 정보는 아는 척하지 마. 항상 존댓말.\n\n[데이터]\n"+ctx}]},
+        "먼저 한도·이번 달 지출 대비 상황을 짚고, 금액은 원 단위 숫자로 말해. 무리한 과금을 부추기지 말고, 한도를 넘겼거나 넘길 상황이면 돌려 말하지 말고 직설적으로 쓴소리를 해. 데이터에 없는 게임 정보는 아는 척하지 마. 항상 존댓말.\n\n[데이터]\n"+ctx}]},
       contents:gchat.slice(-20).map(m=>{
         const pic=m.img&&m.id===mid?chatImgs[m.id]:null;
         const parts=pic?[{inlineData:{mimeType:pic.mime,data:pic.data}}]:[];
@@ -3023,7 +3076,7 @@ async function loadMonth(){
     if(c.plan){
       cfg.plan.income=c.plan.income||0;
       if(Array.isArray(c.plan.envelopes)&&c.plan.envelopes.length)cfg.plan.envelopes=c.plan.envelopes;
-      cfg.plan.goal=Object.assign({name:"",target:0,base:0},c.plan.goal||{});
+      cfg.plan.goal=Object.assign({name:"",target:0,base:0,due:""},c.plan.goal||{});
     }
   }
   const idx=await load("index/summary");

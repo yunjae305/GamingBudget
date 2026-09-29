@@ -46,6 +46,23 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.security.MessageDigest;
+import java.util.UUID;
+
+import android.os.CancellationSignal;
+import androidx.core.content.ContextCompat;
+import androidx.credentials.Credential;
+import androidx.credentials.CredentialManager;
+import androidx.credentials.CredentialManagerCallback;
+import androidx.credentials.CustomCredential;
+import androidx.credentials.GetCredentialRequest;
+import androidx.credentials.GetCredentialResponse;
+import androidx.credentials.exceptions.GetCredentialCancellationException;
+import androidx.credentials.exceptions.GetCredentialException;
+import androidx.credentials.exceptions.NoCredentialException;
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
+import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -174,6 +191,60 @@ public class MainActivity extends AppCompatActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleLink(intent);
+    }
+
+    /** Google 로그인 — 안드로이드 계정 선택창(Credential Manager). strings.xml 의 웹 클라이언트 ID 로 ID 토큰을 받아
+     *  페이지의 __googleToken(idToken, rawNonce) 에 넘기면 페이지가 Supabase 에 grant_type=id_token 으로 로그인한다.
+     *  nonce 는 SHA-256 hex 해시를 Google 에, 원문을 Supabase 에 준다(Supabase 가 해시해서 토큰과 비교).
+     *  실패는 __googleFail(why) — cancelled / no_account / 그 외 문자열. 페이지는 취소가 아니면 브라우저 방식으로 간다. */
+    private void googleSignIn() {
+        String clientId = getString(R.string.google_web_client_id).trim();
+        if (clientId.isEmpty()) { googleFail("no_client_id"); return; }
+        final String rawNonce = UUID.randomUUID().toString();
+        String hashed;
+        try {
+            byte[] d = MessageDigest.getInstance("SHA-256").digest(rawNonce.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : d) sb.append(String.format("%02x", b));
+            hashed = sb.toString();
+        } catch (Exception e) { googleFail("nonce"); return; }
+        GetGoogleIdOption opt = new GetGoogleIdOption.Builder()
+                .setFilterByAuthorizedAccounts(false)
+                .setServerClientId(clientId)
+                .setNonce(hashed)
+                .setAutoSelectEnabled(false)
+                .build();
+        GetCredentialRequest req = new GetCredentialRequest.Builder().addCredentialOption(opt).build();
+        CredentialManager.create(this).getCredentialAsync(this, req, (CancellationSignal) null,
+                ContextCompat.getMainExecutor(this),
+                new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+                    @Override
+                    public void onResult(GetCredentialResponse res) {
+                        Credential c = res.getCredential();
+                        if (c instanceof CustomCredential
+                                && GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(c.getType())) {
+                            try {
+                                String tok = GoogleIdTokenCredential.createFrom(c.getData()).getIdToken();
+                                if (web != null) web.evaluateJavascript("window.__googleToken&&window.__googleToken("
+                                        + JSONObject.quote(tok) + "," + JSONObject.quote(rawNonce) + ")", null);
+                                return;
+                            } catch (Exception ignored) {
+                            }
+                        }
+                        googleFail("bad_credential");
+                    }
+
+                    @Override
+                    public void onError(GetCredentialException e) {
+                        if (e instanceof GetCredentialCancellationException) googleFail("cancelled");
+                        else if (e instanceof NoCredentialException) googleFail("no_account");
+                        else googleFail(e.getType() + ": " + e.getMessage());
+                    }
+                });
+    }
+
+    private void googleFail(String why) {
+        if (web != null) web.evaluateJavascript("window.__googleFail&&window.__googleFail(" + JSONObject.quote(why) + ")", null);
     }
 
     /** 찍어 둔 영수증 임시 파일은 하루 지나면 지운다 (화면이 읽은 뒤에는 필요 없다) */
@@ -452,6 +523,14 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public String takePending() {
             return PendingStore.takeAll(MainActivity.this);
+        }
+
+        /** Google 계정 선택창을 띄운다(결과는 __googleToken / __googleFail). 웹 클라이언트 ID 가 없으면 false → 페이지가 브라우저 방식. */
+        @JavascriptInterface
+        public boolean googleSignIn() {
+            if (getString(R.string.google_web_client_id).trim().isEmpty()) return false;
+            runOnUiThread(MainActivity.this::googleSignIn);
+            return true;
         }
 
         @JavascriptInterface

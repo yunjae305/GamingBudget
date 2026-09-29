@@ -137,17 +137,19 @@ git push
 
 ## 클라우드 동기화 (선택)
 
-기본은 폰 안에만 저장입니다. 메뉴(왼쪽 위 바 3개) › **클라우드 동기화** 에서 로그인하면 전체 기록 한 벌이 서버(Supabase, 서울 리전)에도 저장됩니다.
+앱을 처음 켜면 **Google 계정으로 시작하기** 화면이 뜹니다(1.9 부터). 누르면 안드로이드의 흔한 Google 계정 선택창이 열리고, 고르면 끝입니다. 로그인하면 전체 기록 한 벌이 서버(Supabase, 서울 리전)에도 저장됩니다.
 
-- **로그인 방법**: 이메일 + 비밀번호(가입 → 확인 메일의 링크 → 로그인), 또는 **Google 계정**(브라우저가 열렸다가 앱으로 돌아옵니다. APK 1.7 이상).
 - 저장할 때마다 몇 초 뒤 서버에 올라갑니다. 새 폰에서 로그인하면 서버 기록을 받아오고, 폰과 서버 양쪽에 기록이 있으면 어느 쪽을 쓸지 묻습니다. 다른 기기가 더 새로 올린 게 있으면 앱을 켤 때 알려 줍니다.
-- 로그아웃해도 폰의 기록은 그대로입니다. 인터넷이 없어도 앱은 평소처럼 되고, 못 올린 변경은 다음에 올립니다.
+- 메뉴 › 클라우드 동기화에서 계정·마지막 동기화·로그아웃. 로그아웃해도 폰의 기록은 그대로이고, 앱은 다시 로그인 화면부터 시작합니다. 인터넷이 없어도 로그인만 돼 있으면 앱은 평소처럼 되고, 못 올린 변경은 다음에 올립니다.
+- 계정 선택창을 못 띄우는 경우(옛 APK, 클라이언트 ID 없는 빌드, Play 서비스 없는 폰)에는 브라우저로 Google 로그인한 뒤 `gamingbudget://login` 으로 앱에 돌아옵니다.
 - 서버에 있는 것은 본인 계정만 읽을 수 있습니다(행 단위 권한). 앱에 들어 있는 키는 공개용 키라 저장소에 있어도 됩니다.
 
-**Supabase 대시보드에서 한 번 해 둘 것** (프로젝트 `ledger`, 코드로 못 하는 부분):
-1. Authentication › URL Configuration › **Redirect URLs** 에 `gamingbudget://login` 추가 (Google 로그인 뒤 앱으로 돌아오는 주소).
-2. Authentication › Sign In / Providers › **Google** 켜고 Google Cloud 콘솔에서 만든 OAuth 클라이언트(웹 애플리케이션, 리디렉션 URI `https://jxjmrxusumcbfgwzqdrd.supabase.co/auth/v1/callback`)의 클라이언트 ID·보안 비밀번호 붙여넣기.
-3. (선택) Authentication › Emails 에서 확인 메일 문구를 한국어로.
+**한 번 해 둘 설정** (코드로 못 하는 부분):
+1. **Google Cloud 콘솔 › 사용자 인증 정보 › OAuth 클라이언트 ID** 두 개.
+   - **웹 애플리케이션**: 승인된 리디렉션 URI `https://jxjmrxusumcbfgwzqdrd.supabase.co/auth/v1/callback`. 이 **클라이언트 ID**(`…apps.googleusercontent.com`, 비밀번호 아님)를 `app/src/main/res/values/strings.xml` 의 `google_web_client_id` 에 넣고 APK 를 다시 빌드합니다. 공개 식별자라 저장소에 있어도 됩니다.
+   - **Android**: 패키지 이름 `app.gamingbudget`, SHA-1 인증서 지문은 개인용(debug) 키 `B0:4A:61:AB:7D:56:22:0F:6B:0B:2C:85:60:D2:CC:B1:3A:6D:09:88`. 스토어용 키로 서명하면 그 키의 SHA-1 로 하나 더 만듭니다.
+2. **Supabase › ledger › Authentication › Sign In / Providers › Google** 켜고: Client IDs 에 웹 클라이언트 ID, Client Secret 에 웹 클라이언트의 보안 비밀번호. "Skip nonce check" 는 끈 채로 둡니다(앱이 nonce 를 씁니다).
+3. **Supabase › Authentication › URL Configuration › Redirect URLs** 에 `gamingbudget://login` (브라우저 대체 경로용).
 
 ## 백업
 

@@ -94,7 +94,7 @@ module.exports = async function () {
   await wait(300);
   assert(loginOpen(b), "새 폰도 로그인 화면부터");
   b.$("loginGoogle").click(); await b.w.__googleToken("tok2", "nonce-2"); await wait(200);
-  assert(/받았습니다/.test(b.$("toast").textContent), "폰이 비어 있으면 서버 기록을 받음 — 실제: " + b.$("toast").textContent);
+  assert(!/받았|로그인했/.test(b.$("toast").textContent), "폰이 비어 있으면 서버 기록을 조용히 받음 — 실제: " + b.$("toast").textContent);
   const bm = Object.keys(b.w.localStorage).filter((k) => k.startsWith("gb:months/"));
   assert(bm.length === 1 && b.w.localStorage.getItem(bm[0]).includes("버스"), "서버의 기록이 localStorage 에 들어와야 함");
   assert(b.w.localStorage.getItem("gb:cloud/session"), "받은 뒤에도 세션은 남아야 함 (restoreAll 이 gb:cloud/* 는 안 지움)");

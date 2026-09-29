@@ -930,10 +930,10 @@ const cloudLabel=srv=>{const d=new Date(srv.at);return isNaN(d)?"":d.getMonth()+
 /* 로그인 직후: 서버가 비었으면 폰 기록을 올리고, 폰이 비었으면 서버 기록을 받고, 둘 다 있으면 묻는다 */
 async function afterLogin(){
   renderCloud();
-  toast((cloudSession()||{}).email?(cloudSession().email+" 로 로그인했습니다"):"로그인했습니다");
+  /* 안내 문구 없이 조용히 (사용자 결정 2026-09-29). 서버를 못 읽으면 밀린 변경으로 표시해 두고 다음에 올린다. */
   let srv=null;
-  try{srv=await cloudGet();}catch(e){toast("로그인은 됐지만 서버를 읽지 못했습니다: "+e.message);return;}
-  if(!srv){await cloudPush(true);return;}
+  try{srv=await cloudGet();}catch(e){setCloudMeta("dirty","1");renderCloud();return;}
+  if(!srv){await cloudPush(false);return;}
   if(!hasRecords()){takeServer(srv);return;}
   askCloud(srv,"서버에 "+cloudLabel(srv)+" 기록이 있습니다. 어느 쪽을 쓸까요? 고르지 않은 쪽은 덮어써집니다.");
 }
@@ -941,7 +941,7 @@ function takeServer(srv){
   if(!restoreAll(srv.data)){toast("서버 기록을 읽지 못했습니다");return;}
   setCloudMeta("at",srv.at);setCloudMeta("synced",new Date().toISOString());setCloudMeta("dirty","");
   try{if(window.Android&&window.Android.mirror)window.Android.mirror(JSON.stringify(dumpAll()));}catch(e){}
-  toast("서버 기록을 받았습니다");setTimeout(()=>location.reload(),900);
+  setTimeout(()=>location.reload(),300);
 }
 let cloudT=null;
 function scheduleCloud(){if(!cloudOn())return;clearTimeout(cloudT);cloudT=setTimeout(()=>cloudPush(false),4000);}

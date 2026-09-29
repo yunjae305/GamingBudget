@@ -4,8 +4,8 @@
 
 ## 요약
 
-- 기본 상태에서 입력한 기록, 읽은 알림, 설정은 전부 사용자의 기기 안에만 저장됩니다. 계정 없이 쓸 수 있습니다.
-- 사용자가 메뉴에서 **클라우드 동기화에 로그인한 경우에만** 기록 한 벌이 사용자 본인 계정에 묶여 서버(Supabase)에 저장됩니다. 로그인하지 않으면 어떤 기록도 밖으로 나가지 않습니다.
+- 입력한 기록과 설정은 사용자의 기기에 저장되고, 같은 내용 한 벌이 사용자 본인의 Google 계정에 묶여 서버(Supabase)에 저장됩니다. 앱을 처음 켤 때 Google 계정으로 로그인합니다.
+- 읽은 결제 알림 원문은 기기 안에서만 처리되며 서버로 보내지 않습니다.
 - 개발자는 사용자의 기록을 보지 않으며, 광고·분석 SDK를 쓰지 않습니다.
 
 ## 어떤 데이터를 다루나
@@ -55,13 +55,13 @@
 - 대화는 기기 안에 최근 30개까지 저장되며 "지우기"로 지울 수 있습니다.
 - 전송된 내용의 처리 방식은 Google 의 정책을 따릅니다.
 
-## 클라우드 동기화 (선택 기능)
+## 클라우드 동기화 (Google 로그인)
 
-메뉴 › 클라우드 동기화에서 이메일·비밀번호 또는 Google 계정으로 로그인하면, 앱이 기기 안에 두는 전체 기록의 복사본(수입·지출·저축·게임 결제 기록, 예산·배분·자산 설정, 결제 대기열, AI 조언 문구·상담 대화)이 Supabase(https://supabase.com) 서버에 저장됩니다.
+앱을 처음 켜면 Google 계정으로 로그인합니다. 로그인하면 앱이 기기 안에 두는 전체 기록의 복사본(수입·지출·저축·게임 결제 기록, 예산·배분·자산 설정, 결제 대기열, AI 조언 문구·상담 대화)이 Supabase(https://supabase.com) 서버에 저장됩니다.
 
-- 로그인하지 않으면 아무것도 전송되지 않습니다. 로그인은 선택이며 언제든 로그아웃할 수 있습니다.
-- 서버에는 사용자 계정(이메일 또는 Google 계정 식별자)과 기록 복사본만 저장됩니다. 데이터베이스 권한 규칙으로 **본인 계정만** 자기 기록을 읽고 쓸 수 있습니다.
-- Google 로그인을 쓰면 Google 이 Supabase 에 이메일 주소와 이름을 전달합니다. 앱은 이메일만 표시합니다.
+- 서버에는 사용자 계정(Google 계정 이메일과 식별자)과 기록 복사본만 저장됩니다. 데이터베이스 권한 규칙으로 **본인 계정만** 자기 기록을 읽고 쓸 수 있습니다.
+- Google 로그인 시 Google 이 Supabase 에 이메일 주소와 이름을 전달합니다. 앱은 이메일만 표시하며, 비밀번호는 앱이 다루지 않습니다.
+- 메뉴에서 언제든 로그아웃할 수 있습니다. 로그아웃하면 서버로 더 이상 보내지 않습니다.
 - 결제 알림 원문, 감지 기록, AI 키, 로그인 토큰은 서버에 올리지 않습니다.
 - 로그아웃하면 기기의 기록은 남고 서버 복사본도 유지됩니다. 서버 복사본까지 지우려면 문의 이메일로 계정 삭제를 요청하거나, 앱에서 모든 기록을 지운 뒤 동기화하면 빈 복사본으로 바뀝니다.
 - 서버 운영은 Supabase 의 정책(https://supabase.com/privacy)을 따릅니다.
@@ -96,9 +96,7 @@
 
 # Privacy Policy (English summary)
 
-By default everything you enter, every payment notification it reads, and all settings stay on your device. No account is required, and there are no ads and no analytics.
-
-**Optional cloud sync**: only if you sign in (email/password or Google) from the menu, a copy of your records is stored under your own account on Supabase (Seoul region). Row-level security lets only your account read or write it. Notification text, the AI key and login tokens are never uploaded. Signing out keeps the records on your device.
+Your records and settings are stored on your device, and a copy is stored under your own Google account on Supabase (Seoul region) after you sign in with Google when the app first starts. Row-level security lets only your account read or write it. Payment notification text, the AI key and login tokens are never uploaded. Signing out keeps the records on your device. There are no ads and no analytics.
 
 **Optional AI spending advice** (Stats tab): only when you tap "생성하기", the app sends only aggregate numbers (totals, per-category sums, budget usage) directly from your device to Google's Gemini API using a key bundled in the app — never merchant names or individual transaction memos.
 

@@ -258,6 +258,16 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .screennav button{font-size:17px;color:var(--blue)}
 .screennav .ttl{font-size:17px;font-weight:600}
 .screenbody{flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:18px}
+/* 첫 실행 로그인 화면 */
+#loginScreen{z-index:70;transition:none}
+.loginbody{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;
+  padding:calc(var(--sat) / var(--zoom, 1) + 24px) 28px calc(var(--sab) / var(--zoom, 1) + 32px)}
+.loginface{width:120px;height:120px;border-radius:50%;object-fit:cover;background:linear-gradient(135deg,var(--blue),var(--indigo));margin-bottom:6px}
+.logintitle{font-size:28px;font-weight:700;margin:0}
+.loginmsg{font-size:15px;color:var(--label2);line-height:1.5;margin:0 0 10px}
+#loginGoogle{max-width:340px;display:flex;align-items:center;justify-content:center;gap:10px}
+#loginGoogle:disabled{opacity:.6}
+#loginNote{min-height:20px;padding:0}
 .screenfoot{flex:none;padding:10px 16px calc(10px + calc(var(--sab) / var(--zoom, 1)));
   background:var(--navbg);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-top:.5px solid var(--sep)}
 .swbtn{padding:7px;margin:-7px;display:flex;align-items:center;flex:none}
@@ -538,6 +548,16 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <button id="pkNew" style="font-weight:600">새 제품</button>
   </div></div>
   <div class="screenbody" id="pkBody"></div>
+</div>
+
+<div class="screen" id="loginScreen" role="dialog" aria-label="로그인">
+  <div class="loginbody">
+    <img class="loginface" src="/assets/img/character.png" alt="" onerror="this.style.display='none'">
+    <h1 class="logintitle">가계부</h1>
+    <p class="loginmsg">결제 알림을 모아 기록하고 오늘 쓸 수 있는 돈을 알려 줍니다.<br>Google 계정으로 로그인하면 기록이 서버에도 저장돼 폰을 바꿔도 그대로입니다.</p>
+    <button class="btn" id="loginGoogle"><svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#fff" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.2-.1-2.4-.4-3.5z"/></svg>Google 계정으로 시작하기</button>
+    <p class="note" id="loginNote"></p>
+  </div>
 </div>
 
 <div class="sheet" id="ymSheet" role="dialog" aria-label="달 선택">
@@ -855,16 +875,40 @@ async function ensureUid(){
   if(!s.uid||!s.email){const u=await sbFetch("/auth/v1/user",{},true);const n=cloudSession()||s;n.uid=u.id||n.uid;n.email=u.email||n.email;setCloudSession(n);return n;}
   return s;
 }
-async function cloudLogin(email,pw){
-  const b=await sbFetch("/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email,password:pw})});
-  setCloudSession(sessionFrom(b,email));await afterLogin();
+/* ── 로그인 화면 (사용자 결정 2026-09-29: 앱을 처음 켜면 흔히 보는 Google 계정 선택창으로 로그인) ──
+   앱에서는 로그인 전까지 #loginScreen 이 화면을 덮는다. 버튼 → 네이티브 Android.googleSignIn() 이 안드로이드
+   계정 선택창(Credential Manager)을 띄우고 ID 토큰을 __googleToken(idToken, nonce) 로 돌려주면 Supabase 에
+   grant_type=id_token 으로 로그인한다. 네이티브가 못 띄우면(옛 APK·클라이언트 ID 없음·Play 서비스 없음)
+   브라우저 방식(cloudGoogle → 딥링크 __oauth)으로 간다. 브라우저 미리보기(브리지 없음)에서는 이 화면을 띄우지 않는다. */
+const needLogin=()=>hasBridge()&&!cloudOn();
+function showLogin(on){const s=$("loginScreen");if(s)s.classList.toggle("open",!!on);}
+function loginBusy(b,msg){
+  const btn=$("loginGoogle");btn.disabled=!!b;
+  btn.lastChild.textContent=b?"로그인 중…":"Google 계정으로 시작하기";
+  $("loginNote").textContent=msg||"";
 }
-async function cloudSignUp(email,pw){
-  const b=await sbFetch("/auth/v1/signup",{method:"POST",body:JSON.stringify({email,password:pw})});
-  if(b&&b.access_token){setCloudSession(sessionFrom(b,email));await afterLogin();return;}
-  toast("확인 메일을 보냈습니다. 메일의 링크를 누른 뒤 로그인하세요");
+function startGoogle(){
+  loginBusy(true);
+  let ok=false;
+  try{ok=!!(window.Android&&window.Android.googleSignIn&&window.Android.googleSignIn());}catch(e){ok=false;}
+  if(!ok){loginBusy(false,"브라우저로 로그인합니다…");cloudGoogle();}
 }
-/* Google 로그인: Supabase 의 authorize 로 보내면 브라우저에서 Google 로그인 뒤 SB_REDIRECT 딥링크로 돌아온다.
+window.__googleToken=async function(idToken,nonce){
+  try{
+    const b=await sbFetch("/auth/v1/token?grant_type=id_token",{method:"POST",body:JSON.stringify({provider:"google",id_token:idToken,nonce:nonce||undefined})});
+    setCloudSession(sessionFrom(b,""));
+    loginBusy(false);
+    await afterLogin();
+  }catch(e){loginBusy(false,"로그인 실패: "+e.message);toast("로그인 실패: "+e.message);}
+};
+window.__googleFail=function(why){
+  why=String(why||"");
+  const known={cancelled:"로그인을 취소했습니다",no_account:"이 폰에 Google 계정이 없어 브라우저로 로그인합니다",no_client_id:"이 빌드에 Google 클라이언트 ID 가 없어 브라우저로 로그인합니다"};
+  loginBusy(false,known[why]||("계정 선택창을 못 띄워 브라우저로 로그인합니다 ("+why+")"));
+  if(why!=="cancelled")cloudGoogle();
+};
+$("loginGoogle").addEventListener("click",startGoogle);
+/* Google 로그인(브라우저 방식): Supabase 의 authorize 로 보내면 브라우저에서 Google 로그인 뒤 SB_REDIRECT 딥링크로 돌아온다.
    앱에서는 우리 오리진 밖 이동을 네이티브가 브라우저로 넘긴다(§2). 돌아온 URL 은 네이티브가 __oauth(url) 로 준다. */
 function cloudGoogle(){
   const url=SB_URL+"/auth/v1/authorize?provider=google&redirect_to="+encodeURIComponent(SB_REDIRECT);
@@ -886,6 +930,7 @@ const cloudLabel=srv=>{const d=new Date(srv.at);return isNaN(d)?"":d.getMonth()+
 /* 로그인 직후: 서버가 비었으면 폰 기록을 올리고, 폰이 비었으면 서버 기록을 받고, 둘 다 있으면 묻는다 */
 async function afterLogin(){
   renderCloud();
+  toast((cloudSession()||{}).email?(cloudSession().email+" 로 로그인했습니다"):"로그인했습니다");
   let srv=null;
   try{srv=await cloudGet();}catch(e){toast("로그인은 됐지만 서버를 읽지 못했습니다: "+e.message);return;}
   if(!srv){await cloudPush(true);return;}
@@ -940,22 +985,11 @@ function agoLabel(iso){
 }
 function renderCloud(){
   const host=$("cloudCard"),note=$("cloudNote"),s=cloudSession();
+  showLogin(needLogin());
   if(!s){
-    host.innerHTML='<div class="row"><span class="t">이메일</span><input id="clEmail" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email"></div>'+
-      '<div class="row"><span class="t">비밀번호</span><input id="clPw" type="password" placeholder="6자 이상" autocomplete="current-password"></div>'+
-      '<div class="row" style="gap:8px"><button class="btn tint" id="clLogin" style="flex:1">로그인</button><button class="btn tint" id="clSignUp" style="flex:1">가입</button></div>'+
-      '<button class="row tap" id="clGoogle" style="width:100%;text-align:left"><span class="t">Google 계정으로 로그인</span><span class="chev">›</span></button>';
-    note.textContent="로그인하면 기록 한 벌이 서버(Supabase)에도 저장돼 새 폰에서 로그인만 하면 그대로 돌아옵니다. 로그인하지 않으면 지금처럼 이 폰 안에만 있습니다. 가입은 확인 메일의 링크를 누르면 끝납니다.";
-    const go=async fn=>{
-      const e=$("clEmail").value.trim(),p=$("clPw").value;
-      if(!e||!p){toast("이메일과 비밀번호를 넣어 주세요");return;}
-      $("clLogin").disabled=$("clSignUp").disabled=true;
-      try{await fn(e,p);}catch(err){toast(err.message||"실패했습니다");}
-      finally{const b=$("clLogin");if(b){b.disabled=false;$("clSignUp").disabled=false;}}
-    };
-    $("clLogin").addEventListener("click",()=>go(cloudLogin));
-    $("clSignUp").addEventListener("click",()=>go(cloudSignUp));
-    $("clGoogle").addEventListener("click",cloudGoogle);
+    host.innerHTML='<button class="row tap" id="clGoogle" style="width:100%;text-align:left"><span class="t">Google 계정으로 로그인</span><span class="chev">›</span></button>';
+    note.textContent="로그인하면 기록 한 벌이 서버(Supabase)에도 저장돼 새 폰에서 로그인만 하면 그대로 돌아옵니다.";
+    $("clGoogle").addEventListener("click",()=>{if(hasBridge())startGoogle();else cloudGoogle();});
     $("bkNote").textContent="기록은 이 폰 안에만 저장됩니다. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 내보내 두세요.";
     return;
   }
@@ -2950,6 +2984,7 @@ async function loadMonth(){
   syncBars();
   await loadMonth();
   render();
+  renderCloud(); // 앱에서 로그인 전이면 로그인 화면이 덮는다
   cloudCheck(false); // 로그인돼 있으면 다른 기기 변경 확인·밀린 변경 올리기
 })();
 })();

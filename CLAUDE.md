@@ -17,7 +17,7 @@ ledger/
 │   ├─ PendingStore.java   수집한 알림을 SharedPreferences에 보관
 │   ├─ Reminders.java      하루 예산 알림 — mirror.json 에서 예산·지출을 읽어 아침·저녁 알림, AlarmManager
 │   └─ ReminderReceiver / BootReceiver   알람 수신, 재부팅 후 재등록
-├─ app/src/main/res/values/strings.xml   update_url (개인 빌드 자동 업데이트 주소)
+├─ app/src/main/res/values/strings.xml   update_url (개인 빌드 자동 업데이트 주소), google_web_client_id (Google 로그인 웹 클라이언트 ID — 공개값)
 ├─ app/src/main/res/xml/    backup_rules / data_extraction_rules — 자동 백업에 files/ 포함, live/ 제외
 ├─ tests/                  jsdom 테스트 (npm test): 대기열, 파서 문구 모음, 게임 기록, 백업, 알림 감지 진단, 하루 예산·검색·통계·영수증·알림 설정, 클라우드 동기화
 ├─ tools/                  개발용 — artifact-preview.html(미리보기 무대), setup-android.sh(클라우드 빌드 환경), character-full.png(원본 일러스트)
@@ -56,6 +56,7 @@ ledger/
 - `saveFile(name, content)` → 시스템 저장 창(SAF)으로 파일 내보내기. 결과는 `window.__savedFile(ok)` 로 돌아옴
 - `rescanNotifs()` → 지금 상태 바에 떠 있는 알림을 다시 훑는다(§3 재스캔). `notifLog()` / `notifStats()` / `clearNotifLog()` / `noteDropped(pkg,text,time,why)` → 알림 감지 진단용 (§4 진단 화면)
 - `reminders()` → 하루 예산 알림 상태 `{on,morning,evening,granted,needsPermission}`. `setReminders(on,"HH:MM","HH:MM")` → 저장하고 알람 재등록. `askNotifPermission()` → 안드로이드 13+ 알림 권한 요청(결과 `__notifPerm(granted)`). `testReminder(evening)` → 지금 알림 하나 띄워 보기
+- `googleSignIn()` → 안드로이드 Google 계정 선택창(Credential Manager, `androidx.credentials` + `googleid`). `strings.xml` 의 `google_web_client_id`(웹 클라이언트 ID, 공개값)가 비어 있으면 false 를 돌려주고 페이지가 브라우저 방식으로 간다. 결과는 `__googleToken(idToken, rawNonce)` / `__googleFail(why)` — `cancelled`·`no_account`·`no_client_id`·그 외. nonce 는 SHA-256 hex 를 Google 에, 원문을 Supabase 에(Supabase 가 해시 비교)
 
 네이티브 → 화면: `__pullPending()`(onResume), `__back()`(뒤로가기), `__savedFile(ok)`, `__notifPerm(granted)`, `__cameraShot(mime,b64)`, `__oauth(url)`(Google 로그인 딥링크 `gamingbudget://login#access_token=…` — 매니페스트 intent-filter + `launchMode="singleTask"`, `onNewIntent`/`onCreate` 의 `handleLink` 가 페이지가 뜬 뒤 넘김), 그리고 창 인셋을 `--sat`/`--sab` CSS 변수로 밀어 넣는다.
 
@@ -105,10 +106,11 @@ ledger/
 
 ### 클라우드 동기화 (Supabase, 2026-09-29)
 - 프로젝트 `ledger`(ref `jxjmrxusumcbfgwzqdrd`, 서울 ap-northeast-2), 조직 "yunjae305's Org". 테이블 `public.snapshots(user_id pk → auth.users, data jsonb, at, device, updated_at)` + RLS(본인 행만 select/insert/update/delete). 마이그레이션은 MCP `apply_migration` 으로 넣었다(`ledger_snapshots`). 무료 플랜 활성 2개 제한 때문에 `itsmine` 을 일시정지하고 만들었다(사용자 지시).
-- 페이지는 라이브러리 없이 REST 로 직접 부른다: `SB_URL`/`SB_KEY`(publishable 키 — 공개용이라 코드에 둠) → `sbFetch(path,opt,auth)` 가 apikey·Bearer 헤더, 만료 60초 전 `cloudRefresh`, 오류 코드를 `AUTH_MSG` 로 한국어화. 로그인 `cloudLogin`(password grant)·`cloudSignUp`(확인 메일)·`cloudGoogle`(`/auth/v1/authorize?provider=google&redirect_to=gamingbudget://login` 으로 이동 → 네이티브가 브라우저로 넘김 → 딥링크로 돌아와 `__oauth(url)` 이 조각의 토큰을 세션으로, `/auth/v1/user` 로 이메일).
+- 페이지는 라이브러리 없이 REST 로 직접 부른다: `SB_URL`/`SB_KEY`(publishable 키 — 공개용이라 코드에 둠) → `sbFetch(path,opt,auth)` 가 apikey·Bearer 헤더, 만료 60초 전 `cloudRefresh`, 오류 코드를 `AUTH_MSG` 로 한국어화.
+- **로그인은 Google 만, 앱을 처음 켜면 강제**(사용자 결정 2026-09-29, 이메일·비밀번호 폼은 뺐다). 앱(`hasBridge()`)에서 세션이 없으면 `#loginScreen`(`.screen`, z-index 70)이 덮는다 — `renderCloud()` 가 `showLogin(needLogin())` 로 켜고 끈다. 버튼 `#loginGoogle` → `startGoogle()` → `Android.googleSignIn()` → `__googleToken(idToken,nonce)` 가 `/auth/v1/token?grant_type=id_token` `{provider:"google",id_token,nonce}` 로 세션을 받고 `afterLogin()`. 네이티브가 false 를 주거나 `__googleFail`(취소 제외)이면 브라우저 방식 `cloudGoogle()`(`/auth/v1/authorize?provider=google&redirect_to=gamingbudget://login` 으로 이동 → 네이티브가 브라우저로 넘김 → 딥링크로 돌아와 `__oauth(url)` 이 조각의 토큰을 세션으로, `/auth/v1/user` 로 이메일). 로그아웃하면 다시 로그인 화면. 브라우저 미리보기(브리지 없음)는 로그인 화면 없이 쓰고 메뉴의 Google 행만 있다. 뒤로가기 목록에 넣지 않는다(로그인 화면에서 뒤로가기 = 앱 종료).
 - **폰의 localStorage 가 기준, 서버는 복사본.** `scheduleMirror()` 가 `scheduleCloud()` 도 불러 4초 뒤 `cloudPush()` 가 `dumpAll()` 한 벌을 upsert(`Prefer: resolution=merge-duplicates`). 실패하면 `dirty` 표시 → `__pullPending`(onResume)·`cloudCheck`(init) 때 다시. `afterLogin()`: 서버 비었으면 올리고, 폰 비었으면 `takeServer()`(restoreAll + reload), 둘 다 있으면 `#cloudAlert` 로 묻는다. `cloudCheck(manual)`: 서버 `at` 가 로컬 `gb:cloud/at` 보다 새로우면(다른 기기) 묻고, 아니면 밀린 변경/수동이면 올린다. 백업 파일 가져오기 뒤에도 `dirty` 를 켜서 서버에 반영.
 - 메뉴 시트 "클라우드 동기화" 카드(`renderCloud()`): 로그아웃 상태는 이메일·비밀번호·로그인·가입·Google 행, 로그인 상태는 계정·지금 동기화(마지막 시각/올릴 변경 있음)·로그아웃. `#bkNote` 문구도 상태 따라 바꾼다.
-- **대시보드에서만 되는 설정**(MCP 로 못 함, README "클라우드 동기화" 참고): Redirect URLs 에 `gamingbudget://login`, Google provider 의 클라이언트 ID·비밀번호(Google Cloud 콘솔 웹 애플리케이션 클라이언트, 리디렉션 URI `https://jxjmrxusumcbfgwzqdrd.supabase.co/auth/v1/callback`). 비밀번호 값은 채팅·파일에 적지 않는다.
+- **대시보드에서만 되는 설정**(MCP 로 못 함, README "클라우드 동기화" 참고): Google Cloud 콘솔에 웹 클라이언트(리디렉션 URI `https://jxjmrxusumcbfgwzqdrd.supabase.co/auth/v1/callback`) + Android 클라이언트(패키지 `app.gamingbudget`, debug 키 SHA-1 `B0:4A:61:AB:7D:56:22:0F:6B:0B:2C:85:60:D2:CC:B1:3A:6D:09:88`; 릴리스 키는 따로), 웹 클라이언트 ID 를 `strings.xml` `google_web_client_id` 와 Supabase Google provider Client IDs 에, 비밀번호는 Supabase 에만, Redirect URLs 에 `gamingbudget://login`. 비밀번호 값은 채팅·파일에 적지 않는다.
 - 테스트 `tests/cloud.test.js` 가 fetch 를 흉내 내 로그인 오류 문구, 올리기/받기/묻기, 저장 뒤 자동 올리기, 딥링크 `__oauth`, 로그아웃, 백업 파일에 토큰이 없는지 확인한다.
 
 `cfg` = `{budget:{total,cat:{},payday,payNext}, plan:{income,envelopes[{id,name,pct,mode:"pct"|"amt",amt,saving,color}],goal,budgetEnv}, assets[], gameNames[], gameGuard:{month,daily,perGame{}}, gameGrps:{게임:[카테고리]}, gameProducts:{게임:[{id,name,desc,price,grp}]}}`
@@ -200,7 +202,7 @@ ledger/
 - AI 조언은 한 달에 한 번 생성해 캐시한다. 화면을 열 때마다 자동으로 다시 부르지 않는다 — 사용자가 "다시 생성"을 눌러야 한다.
 - 스토어 빌드에는 원격 업데이트를 넣지 않는다. 개인 빌드(debug)만 한다.
 - 백업은 자동 미러 + 수동 파일, 두 겹. 자동 복원은 **기록이 하나도 없을 때만**(기존 기록을 덮지 않는다).
-- **DB 는 Supabase**(2026-09-29 사용자 결정, Firebase 아님). 로그인은 선택이고 첫 실행에 강제하지 않는다. 폰이 기준이고 서버는 사용자별 스냅샷 한 벌(정규화된 테이블 아님) — 서버에서 통계를 돌릴 일이 생기면 그때 쪼갠다. 폰과 서버 양쪽에 기록이 있으면 자동으로 합치지 않고 묻는다.
+- **DB 는 Supabase**(2026-09-29 사용자 결정, Firebase 아님). **앱을 처음 켜면 Google 계정 선택창으로 로그인해야 한다**(2026-09-29 — "흔히 아는 구글 로그인"; 이메일·비밀번호는 없다). 폰이 기준이고 서버는 사용자별 스냅샷 한 벌(정규화된 테이블 아님) — 서버에서 통계를 돌릴 일이 생기면 그때 쪼갠다. 폰과 서버 양쪽에 기록이 있으면 자동으로 합치지 않고 묻는다.
 - 알림 접근 권한은 설명 팝업을 먼저 보여 준 뒤에 설정으로 보낸다.
 
 ## 7. 알려진 할 일 / 주의

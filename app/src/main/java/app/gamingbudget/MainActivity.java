@@ -60,7 +60,7 @@ import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.GetCredentialCancellationException;
 import androidx.credentials.exceptions.GetCredentialException;
 import androidx.credentials.exceptions.NoCredentialException;
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
 import org.json.JSONObject;
 
@@ -217,11 +217,11 @@ public class MainActivity extends AppCompatActivity {
             for (byte b : d) sb.append(String.format("%02x", b));
             hashed = sb.toString();
         } catch (Exception e) { googleFail("nonce"); return; }
-        GetGoogleIdOption opt = new GetGoogleIdOption.Builder()
-                .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(clientId)
+        // GetSignInWithGoogleOption = "Google 계정으로 로그인" 버튼용 시트("계정 선택 / ○○ 계정으로 계속").
+        // GetGoogleIdOption 은 Play 서비스 24.40 미만 + 계정 여러 개인 안드로이드 14+ 에서 시트가 안 뜨고 콜백도 없는
+        // 알려진 문제가 있다(developer.android.com credential-manager-troubleshooting-guide) — 실기기에서 그대로 재현됨.
+        GetSignInWithGoogleOption opt = new GetSignInWithGoogleOption.Builder(clientId)
                 .setNonce(hashed)
-                .setAutoSelectEnabled(false)
                 .build();
         GetCredentialRequest req = new GetCredentialRequest.Builder().addCredentialOption(opt).build();
         CredentialManager.create(this).getCredentialAsync(this, req, (CancellationSignal) null,

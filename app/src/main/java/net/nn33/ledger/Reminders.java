@@ -174,6 +174,21 @@ final class Reminders {
         };
     }
 
+    /** 그 달의 월급날(그 달에 없으면 말일) + payNext 면 하루 뒤 */
+    private static Calendar periodStart(int y, int m, int payday, boolean payNext) {
+        Calendar c = Calendar.getInstance();
+        c.clear();
+        c.set(y, m, 1);
+        int last = c.getActualMaximum(Calendar.DAY_OF_MONTH);
+        c.set(Calendar.DAY_OF_MONTH, Math.min(payday, last));
+        if (payNext) c.add(Calendar.DAY_OF_YEAR, 1);
+        return c;
+    }
+
+    private static String iso(Calendar c) {
+        return String.format(Locale.US, "%04d-%02d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH));
+    }
+
     static final class Daily {
         long allow, spent, rest, monthRest;
         int left;
@@ -196,29 +211,47 @@ final class Reminders {
             long total = budget == null ? 0 : budget.optLong("total", 0);
             if (total <= 0) return null;
 
-            Calendar cal = Calendar.getInstance();
-            int y = cal.get(Calendar.YEAR), mo = cal.get(Calendar.MONTH) + 1, day = cal.get(Calendar.DAY_OF_MONTH);
-            int days = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
-            String ym = String.format(Locale.US, "%04d-%02d", y, mo);
-            String today = String.format(Locale.US, "%s-%02d", ym, day);
+            // 예산 기간: 월급날(budget.payday, payNext)이 있으면 월급날(다음날)부터 다음 월급 전날까지, 없으면 달력 한 달.
+            // 화면의 budgetPeriod() 와 같은 규칙.
+            int payday = budget.optInt("payday", 0);
+            boolean payNext = budget.optBoolean("payNext", false);
+            Calendar now = Calendar.getInstance();
+            now.set(Calendar.HOUR_OF_DAY, 0); now.set(Calendar.MINUTE, 0); now.set(Calendar.SECOND, 0); now.set(Calendar.MILLISECOND, 0);
+            Calendar start, next;
+            if (payday < 1 || (payday == 1 && !payNext)) {
+                start = (Calendar) now.clone(); start.set(Calendar.DAY_OF_MONTH, 1);
+                next = (Calendar) start.clone(); next.add(Calendar.MONTH, 1);
+            } else {
+                start = periodStart(now.get(Calendar.YEAR), now.get(Calendar.MONTH), payday, payNext);
+                if (start.after(now)) start = periodStart(now.get(Calendar.YEAR), now.get(Calendar.MONTH) - 1, payday, payNext);
+                next = periodStart(start.get(Calendar.YEAR), start.get(Calendar.MONTH) + 1, payday, payNext);
+            }
+            String sIso = iso(start), eIso;
+            { Calendar e = (Calendar) next.clone(); e.add(Calendar.DAY_OF_YEAR, -1); eIso = iso(e); }
+            int days = (int) Math.round((next.getTimeInMillis() - start.getTimeInMillis()) / 86400000.0);
+            int dayIdx = (int) Math.round((now.getTimeInMillis() - start.getTimeInMillis()) / 86400000.0);
+            String today = iso(now);
 
             long before = 0, spent = 0;
-            String monthS = data.optString("gb:months/" + ym, "");
-            if (!monthS.isEmpty()) {
+            java.util.LinkedHashSet<String> months = new java.util.LinkedHashSet<>();
+            months.add(sIso.substring(0, 7)); months.add(eIso.substring(0, 7));
+            for (String ym : months) {
+                String monthS = data.optString("gb:months/" + ym, "");
+                if (monthS.isEmpty()) continue;
                 JSONArray txs = new JSONObject(monthS).optJSONArray("txs");
-                if (txs != null) {
-                    for (int i = 0; i < txs.length(); i++) {
-                        JSONObject t = txs.optJSONObject(i);
-                        if (t == null || !"expense".equals(t.optString("type"))) continue;
-                        String d = t.optString("d", "");
-                        long a = t.optLong("amount", 0);
-                        if (d.compareTo(today) < 0) before += a;
-                        else if (d.equals(today)) spent += a;
-                    }
+                if (txs == null) continue;
+                for (int i = 0; i < txs.length(); i++) {
+                    JSONObject t = txs.optJSONObject(i);
+                    if (t == null || !"expense".equals(t.optString("type"))) continue;
+                    String d = t.optString("d", "");
+                    if (d.compareTo(sIso) < 0 || d.compareTo(eIso) > 0) continue;
+                    long a = t.optLong("amount", 0);
+                    if (d.compareTo(today) < 0) before += a;
+                    else if (d.equals(today)) spent += a;
                 }
             }
             Daily r = new Daily();
-            r.left = days - day + 1;
+            r.left = Math.max(1, days - dayIdx);
             r.allow = (long) Math.floor((double) (total - before) / r.left);
             r.spent = spent;
             r.rest = r.allow - spent;

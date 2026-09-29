@@ -59,7 +59,7 @@ ledger/
 
 네이티브 → 화면: `__pullPending()`(onResume), `__back()`(뒤로가기), `__savedFile(ok)`, `__notifPerm(granted)`, 그리고 창 인셋을 `--sat`/`--sab` CSS 변수로 밀어 넣는다.
 
-**하루 예산 알림** — `Reminders` 가 `AlarmManager.setAndAllowWhileIdle` 로 아침·저녁 다음 회차를 걸고, 울리면 알림을 띄운 뒤 다음 날 것을 다시 건다(정확한 알람 권한 불필요, 절전 중엔 몇 분 늦을 수 있음). 숫자는 화면이 못 보는 시간에도 계산해야 해서 `files/mirror.json` 에서 읽는다 — 화면의 `dailyBudget()` 과 같은 규칙. 총 예산이 없으면 그날은 알림을 띄우지 않는다. 앱 시작(`onCreate`)과 재부팅(`BootReceiver`) 때 `schedule()` 로 재정비. 설정은 SharedPreferences `reminders`(localStorage·백업 밖).
+**하루 예산 알림** — `Reminders` 가 `AlarmManager.setAndAllowWhileIdle` 로 아침·저녁 다음 회차를 걸고, 울리면 알림을 띄운 뒤 다음 날 것을 다시 건다(정확한 알람 권한 불필요, 절전 중엔 몇 분 늦을 수 있음). 숫자는 화면이 못 보는 시간에도 계산해야 해서 `files/mirror.json` 에서 읽는다 — 화면의 `dailyBudget()` 과 같은 규칙(월급날 기간 `budget.payday`/`payNext` 포함, 기간이 걸친 두 달을 읽음). 총 예산이 없으면 그날은 알림을 띄우지 않는다. 앱 시작(`onCreate`)과 재부팅(`BootReceiver`) 때 `schedule()` 로 재정비. 설정은 SharedPreferences `reminders`(localStorage·백업 밖).
 
 **엣지투엣지**: targetSdk 35+ 는 시스템 바 뒤까지 그리는 게 강제라 `EdgeToEdge.enable` 을 쓰고, 인셋을 재서 페이지의 `--sat`/`--sab` 에 넣는다(index.html 은 `env(safe-area-inset-*)` 대신 이 변수를 쓴다). 키보드가 올라오면 루트 뷰에 그만큼 패딩을 줘서 입력칸이 가려지지 않게 한다.
 
@@ -102,10 +102,11 @@ ledger/
 | `gb:ai/note/YYYY-MM` | 그 달 생성한 `{comment,advice,at}`. 한 달에 한 번 캐시, 백업에 포함 |
 | `gb:ai/gchat` | 게임 과금 상담 대화 `[{role,text}]` 최근 30개. 백업 포함 |
 
-`cfg` = `{budget:{total,cat:{}}, plan:{income,envelopes[{id,name,pct,mode:"pct"|"amt",amt,saving,color}],goal,budgetEnv}, assets[], gameNames[], gameGuard:{month,daily,perGame{}}, gameGrps:{게임:[카테고리]}, gameProducts:{게임:[{id,name,desc,price,grp}]}}`
+`cfg` = `{budget:{total,cat:{},payday,payNext}, plan:{income,envelopes[{id,name,pct,mode:"pct"|"amt",amt,saving,color}],goal,budgetEnv}, assets[], gameNames[], gameGuard:{month,daily,perGame{}}, gameGrps:{게임:[카테고리]}, gameProducts:{게임:[{id,name,desc,price,grp}]}}`
 
 ### 하루 예산 ("오늘쓸돈" 참고, 2026-09-23)
-- `dailyBudget()` = (월 예산 − 오늘 전까지 지출) ÷ 오늘 포함 남은 날 → `{allow(하루 기준), spent(오늘 쓴 돈), rest(오늘 남은 돈), monthRest, left}`. 적게 쓴 날의 여유는 자동으로 다음 날로 넘어간다. 이달 화면이 아니거나 총 예산이 없으면 null.
+- `dailyBudget()` = (월 예산 − 오늘 전까지 지출) ÷ 오늘 포함 남은 날 → `{allow(하루 기준), spent(오늘 쓴 돈), rest(오늘 남은 돈), monthRest, left, period, dayIdx}`. 적게 쓴 날의 여유는 자동으로 다음 날로 넘어간다. 이달 화면이 아니거나 총 예산이 없으면 null.
+- **예산 기간 = 월급날 기준**(사용자 요청, 2026-09-29). `budgetPeriod(today)` 가 `cfg.budget.payday`(1~31)·`payNext`(월급 다음날부터)로 `{start,end,days,calendar}` 를 준다. 월급날부터 다음 월급 전날까지, 그 달에 없는 날(31일)은 말일. 1일 + 다음날 꺼짐이면 달력 한 달(`calendar:true`, 예전 동작). 기간이 두 달에 걸치므로 달별 내역 캐시 `MON[YYYY-MM]` 을 두고(`ensureMonths(keys)`, `MON[ym]` 은 항상 `txs` 와 같은 객체) `periodTxs(p)` 로 기간 안 지출만 더한다. `commit()` 도 다른 달에 넣을 때 이 캐시를 쓴다(localStorage 를 매번 읽으면 save 디바운스 안에 두 건 넣을 때 앞 건이 사라짐). 설정은 메뉴 시트 "월급날" `#paydaySel`/`#payNext`(`renderPayday`/`applyPayday`). 예산 탭 머리글("이번 기간 예산 · 9월 25일 ~ 10월 24일"), 사용액, N일째도 기간 기준. 네이티브 `Reminders.compute()` 가 같은 규칙(`periodStart`)으로 mirror.json 의 두 달을 읽는다.
 - 상단 카드 첫 줄(`#todayRow`)에 "오늘 쓸 수 있는 돈" 이 가장 먼저 보이고(누르면 예산 탭), 예산 탭 맨 위 `#todayCard`(`paintToday()`)에 큰 숫자로. 초과면 빨강, 남으면 초록. **이 줄은 내역 탭에서만 보인다.** 통계 탭은 수입/지출/저축 카드만, 예산·자산·배분·게임 탭은 상단 카드 자체가 없다 — 사용자 결정, 2026-09-24.
 - **총 예산 = 배분 탭 생활비 봉투 금액**(사용자 결정, 2026-09-24: "예산과 생활비는 같은 것"). `syncBudgetFromPlan()` 이 렌더 때마다 `cfg.budget.total` 에 써서 알림(mirror.json)도 같은 숫자를 본다. 봉투가 없거나 실수령액이 없으면 예산 탭에서 직접 적는 입력칸이 보인다. 봉투가 있으면 총 예산 줄은 읽기 전용이고 누르면 배분 탭으로.
 
@@ -151,7 +152,7 @@ ledger/
 - 금액 입력은 반드시 `bindMoney(el, onChange)` 사용 → 입력 중 `1,234원` 서식, 커서는 "원" 앞. 값 표시는 `moneyStr(v)`.
 - `parseN`, `fmt`, `esc`, `uid`, `todayISO`, `pad`
 - 오버레이: 하단 시트 `.sheet`(+`scrim`), 전체화면 `.screen`, 가운데 팝업 `.alertwrap`. 열 때 `lockScroll(true)`.
-- 메뉴 시트(`themeSheet`, 제목 "메뉴", 왼쪽 위 바 3개 아이콘 `#themeBtn`): 화면 모드 세그먼트 + 글씨 크기 세그먼트(`applyScale`, 루트 zoom) + 결제 알림 감지 상태(`renderSettings()`: 앱 밖/꺼짐/켜짐/끊김, 배터리 최적화 링크, 감지 기록 보기) + 백업. 알림 접근을 켜는 모든 경로는 `askNotifAccess()` → `#notifAlert` 설명 팝업을 먼저 거친다(스토어 정책의 "눈에 띄는 고지").
+- 메뉴 시트(`themeSheet`, 제목 "메뉴", 왼쪽 위 바 3개 아이콘 `#themeBtn`): 화면 모드 세그먼트 + 월급날(`#paydaySel`/`#payNext`, §4 하루 예산) + 글씨 크기 세그먼트(`applyScale`, 루트 zoom) + 결제 알림 감지 상태(`renderSettings()`: 앱 밖/꺼짐/켜짐/끊김, 배터리 최적화 링크, 감지 기록 보기) + 백업. 알림 접근을 켜는 모든 경로는 `askNotifAccess()` → `#notifAlert` 설명 팝업을 먼저 거친다(스토어 정책의 "눈에 띄는 고지").
 - 안전 영역은 `calc(var(--sat) / var(--zoom, 1))` 꼴로 쓴다(글씨 크기 zoom 보정). 기본값은 `env(safe-area-inset-*)`, 앱에서는 네이티브가 실측값으로 덮어쓴다.
 - 시트를 닫은 뒤 돌아갈 화면은 `closeSheet()`의 `backToInbox / backToPick / backToDetail` 플래그로 처리.
 
@@ -182,6 +183,7 @@ ledger/
 - 결제 대기열 화면에는 **목록과 아래 버튼 두 개(영수증 스캔·일괄 저장)만** 둔다. 각 건을 개별로 켜고 끄고, 날짜 머리글로 그날 전체를 한 번에 켜고 끈다. 문자 붙여넣기 입력은 없앴다 — 알림이 감지돼서 대기열에 들어오는 게 기본이고, 손으로 넣을 일은 `+` 버튼으로 한다. 영수증 스캔은 2026-09-23 사용자 요청으로 추가.
 - **"오늘쓸돈"(moteystudio.com) 참고 기능** (2026-09-23 사용자 선택): 하루 예산·상단 오늘 카드·예산 계산기, 내역 검색·필터, 통계(일별·히트맵·요일별), 영수증 스캔, 아침·저녁 예산 알림은 **넣었다.** Excel 내보내기와 달력 셀을 예산 초과 여부로 색칠하는 것은 **넣지 않는다**(사용자가 뺌). 달력 색은 그대로 수입 파랑·지출 빨강·저축 초록.
 - 하루 예산 규칙은 오늘쓸돈과 같다: (월 예산 − 오늘 전까지 지출) ÷ 남은 날. 덜 쓴 날의 여유가 다음 날로 넘어간다.
+- **예산 기간은 월급날 기준**(2026-09-29): 메뉴에서 월급날을 정하면 월급날(또는 그 다음날)부터 다음 월급 전날까지가 한 기간이고 "오늘 쓸 수 있는 돈"·알림이 그 기간으로 계산된다. 기본은 1일(달력 한 달). 월 합계·통계·달력은 그대로 달력 달 기준이다 — 기간이 바뀌는 건 하루 예산 계산과 예산 탭 진행률뿐.
 - 대기열 위에 안내가 뜨는 건 **기본이 성립하지 않을 때뿐이다.** 알림 접근이 꺼졌거나(→ 켜기 링크), 앱 밖(브라우저)일 때. 정상 동작 중에는 아무것도 띄우지 않는다.
 - 게임 제품을 사진으로 읽어 오는 기능(Gemini)은 **제거했다.** AI는 통계 탭 캐릭터 카드로 옮겼다(위 "통계 탭 AI 카드" 참고).
 - **AI API 키는 코드나 저장소에 절대 넣지 않고, 사용자에게 입력받지도 않는다.** 빌드 때 박아 넣는 한 경로만 있다(사용자 결정, 2026-09-24 — 설정 입력칸은 뺐다): PC 는 프로젝트 루트 `.env`(gitignore) 의 `GEMINI_API_KEY`, CI 는 같은 이름의 GitHub 시크릿, 클라우드는 같은 이름의 환경 변수 → `BuildConfig.AI_KEY`. 기본 **debug 빌드에만** 들어가고 release 는 `AI_KEY_IN_RELEASE=true` 를 적어야 들어간다(APK 에서 꺼낼 수 있으니). 백업·미러에는 담지 않는다. Claude 는 키 값을 파일에 적지 않는다 — 사용자가 시크릿·환경 변수에 직접 넣는다.
@@ -206,7 +208,7 @@ npm install        # jsdom
 npm test           # tests/*.test.js 실행
 node --check <(sed -n '/<script>/,/<\/script>/p' app/src/main/assets/index.html | sed '1d;$d')   # 대략적 문법 확인
 ```
-테스트는 `window.Android`를 흉내 내서 알림 → 대기열 → 저장 흐름, 카드사·은행·페이별 알림 문구 파싱(`parser.test.js`, 새 형식은 여기에 추가), 게임 결제 기록(할인 포함) 흐름, 저장 → 미러 → 새 설치 자동 복원 → 파일 내보내기, 버린 알림이 진단 기록에 남는지(`diag.test.js`), 하루 예산 계산·예산 계산기·검색·통계 섹션·영수증 스캔(fetch 흉내)·알림 설정 브리지(`budget.test.js`)를 클릭으로 따라간다. `index.html`을 고친 뒤 꼭 돌릴 것.
+`LEDGER_TEST_NOW=2026-10-31 npm test` 처럼 주면 노드·페이지의 "오늘"이 그 날로 고정된다(`tests/helpers.js`) — 월급날 기간처럼 날짜에 따라 갈리는 계산은 1일·15일·말일·2월로 돌려 볼 것. 테스트는 `window.Android`를 흉내 내서 알림 → 대기열 → 저장 흐름, 카드사·은행·페이별 알림 문구 파싱(`parser.test.js`, 새 형식은 여기에 추가), 게임 결제 기록(할인 포함) 흐름, 저장 → 미러 → 새 설치 자동 복원 → 파일 내보내기, 버린 알림이 진단 기록에 남는지(`diag.test.js`), 하루 예산 계산·예산 계산기·검색·통계 섹션·영수증 스캔(fetch 흉내)·알림 설정 브리지(`budget.test.js`)를 클릭으로 따라간다. `index.html`을 고친 뒤 꼭 돌릴 것.
 
 APK 빌드 확인(로컬, Git Bash):
 ```bash

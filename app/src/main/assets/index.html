@@ -569,6 +569,12 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <button data-v="dark">다크</button>
   </div>
   <p class="note" style="margin:0;padding:0 32px 22px">시스템을 고르면 기기의 다크 모드 설정을 그대로 따라갑니다.</p>
+  <p class="hdr">월급날</p>
+  <div class="card">
+    <div class="row"><span class="t">월급날</span><select id="paydaySel" aria-label="월급날"></select></div>
+    <div class="row"><span class="t">월급 다음날부터 계산</span><label class="sw"><input type="checkbox" id="payNext"><span></span></label></div>
+  </div>
+  <p class="note" id="paydayNote"></p>
   <p class="hdr">글씨 크기</p>
   <div class="seg" id="fontSeg" style="margin-bottom:10px">
     <button data-v="0.9">작게</button>
@@ -784,6 +790,7 @@ $("bkOk").addEventListener("click",()=>{
 });
 const saveCfg=()=>save("config/main",cfg);
 function saveMonth(){
+  MON[ym]=txs;
   save("months/"+ym,{txs});
   const t=totals();summary[ym]={i:t.i,e:t.e,s:t.s};
   save("index/summary",{months:summary});
@@ -802,14 +809,41 @@ function catTotals(type){
 const daysIn=()=>{const[y,m]=ym.split("-").map(Number);return new Date(y,m,0).getDate();};
 /* ── 하루 예산 ── "오늘쓸돈" 방식: (월 예산 − 오늘 전까지 쓴 돈) ÷ 오늘 포함 남은 날 = 오늘 쓸 수 있는 돈.
    적게 쓴 날의 여유는 자동으로 다음 날로 넘어간다. 이달 화면이 아니거나 예산이 없으면 null. */
+/* 달별 내역 캐시 — 하루 예산 기간이 두 달에 걸칠 때(월급날 기준) 옆 달 기록도 동기로 읽으려고 둔다.
+   MON[ym] 은 항상 지금 보는 달의 txs 배열과 같은 객체. */
+const MON={};
+async function ensureMonths(keys){
+  for(const k of keys){if(MON[k])continue;const doc=await load("months/"+k);MON[k]=(doc&&Array.isArray(doc.txs))?doc.txs:[];}
+}
+/* 예산 기간 (사용자 요청, 2026-09-29). 월급날(cfg.budget.payday 1~31)이 있으면 월급날(payNext 면 그 다음날)부터
+   다음 월급 전날까지, 없으면 달력 한 달. 월급날이 그 달에 없으면(31일 등) 말일로 본다. */
+function budgetPeriod(today){
+  today=today||todayISO();
+  const P=Number(cfg.budget.payday)||0,off=cfg.budget.payNext?1:0;
+  const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+  const t=new Date(today+"T00:00:00");
+  if(P<1||(P===1&&!off)){
+    const s=new Date(t.getFullYear(),t.getMonth(),1),e=new Date(t.getFullYear(),t.getMonth()+1,0);
+    return {start:iso(s),end:iso(e),days:e.getDate(),calendar:true};
+  }
+  const startOf=(y,m)=>{const last=new Date(y,m+1,0).getDate();const d=new Date(y,m,Math.min(P,last));d.setDate(d.getDate()+off);return d;};
+  let s=startOf(t.getFullYear(),t.getMonth());
+  if(s>t)s=startOf(t.getFullYear(),t.getMonth()-1);
+  const ns=startOf(s.getFullYear(),s.getMonth()+1),e=new Date(ns);e.setDate(e.getDate()-1);
+  return {start:iso(s),end:iso(e),days:Math.round((e-s)/864e5)+1,calendar:false};
+}
+const monthsIn=p=>{const a=p.start.slice(0,7),b=p.end.slice(0,7);return a===b?[a]:[a,b];};
+function periodTxs(p){const out=[];monthsIn(p).forEach(k=>{(MON[k]||[]).forEach(t=>{if(t.d>=p.start&&t.d<=p.end)out.push(t);});});return out;}
+const periodLabel=p=>{const f=d=>Number(d.slice(5,7))+"월 "+Number(d.slice(8))+"일";return f(p.start)+" ~ "+f(p.end);};
 function dailyBudget(){
   const tot=cfg.budget.total||0,today=todayISO();
   if(!tot||today.slice(0,7)!==ym)return null;
-  const n=daysIn(),day=Number(today.slice(8)),left=n-day+1;
+  const p=budgetPeriod(today);
+  const dayIdx=Math.round((new Date(today+"T00:00:00")-new Date(p.start+"T00:00:00"))/864e5),left=p.days-dayIdx;
   let before=0,spent=0;
-  txs.forEach(t=>{if(t.type!=="expense")return;if(t.d<today)before+=t.amount;else if(t.d===today)spent+=t.amount;});
+  periodTxs(p).forEach(t=>{if(t.type!=="expense")return;if(t.d<today)before+=t.amount;else if(t.d===today)spent+=t.amount;});
   const allow=Math.floor((tot-before)/left);
-  return {total:tot,allow,spent,rest:allow-spent,left,monthRest:tot-before-spent};
+  return {total:tot,allow,spent,rest:allow-spent,left,monthRest:tot-before-spent,period:p,dayIdx};
 }
 const firstDow=()=>{const[y,m]=ym.split("-").map(Number);return new Date(y,m-1,1).getDay();};
 const totalSaved=()=>cfg.plan.goal.base+Object.values(summary).reduce((a,v)=>a+(v.s||0),0);
@@ -982,18 +1016,22 @@ function paintToday(){
     '<b class="tnum" style="color:'+(over?"var(--red)":"var(--green)")+'">'+(over?"−":"")+fmt(Math.abs(db.rest))+'원</b></div>'+
     '<div class="row"><span class="t">하루 기준</span><span class="val tnum">'+fmt(db.allow)+'원</span></div>'+
     '<div class="row"><span class="t">오늘 쓴 돈</span><span class="val tnum">'+fmt(db.spent)+'원</span></div>'+
-    '<div class="row"><span class="t">이달 남은 돈</span><span class="val tnum">'+fmt(db.monthRest)+'원 · '+db.left+'일</span></div>';
+    '<div class="row"><span class="t">'+(db.period.calendar?"이달 남은 돈":"기간 남은 돈")+'</span><span class="val tnum">'+fmt(db.monthRest)+'원 · '+db.left+'일</span></div>'+
+    (db.period.calendar?'':'<div class="row"><span class="t" style="color:var(--label2)">기간</span><span class="val tnum">'+periodLabel(db.period)+'</span></div>');
 }
 function renderBudget(){
   const v=view(),t=totals(),n=daysIn();
   const cur=todayISO().slice(0,7)===ym?new Date().getDate():n;
   const fromPlan=syncBudgetFromPlan();
-  const tot=cfg.budget.total||0,used=t.e,pc=tot?Math.min(100,used/tot*100):0;
+  /* 월급날 기간이면 사용액·경과일도 그 기간 기준 (이번 달 화면일 때) */
+  const db=dailyBudget(),per=db?db.period:null,inPeriod=!!(per&&!per.calendar);
+  const tot=cfg.budget.total||0,used=inPeriod?tot-db.monthRest:t.e,pc=tot?Math.min(100,used/tot*100):0;
+  const dayNo=inPeriod?db.dayIdx+1:cur,dayTot=inPeriod?per.days:n;
   const totRow=fromPlan?
     '<button class="row tap" id="btRow" style="width:100%;text-align:left"><span class="t">총 예산</span><span class="val tnum" id="btVal" style="color:var(--label);font-weight:600">'+fmt(cfg.budget.total)+'원</span><span class="sub" style="white-space:nowrap">배분 탭 '+esc(budgetEnv().name||"생활비")+'</span><span class="chev">›</span></button>':
     '<div class="row"><span class="t">총 예산</span><input id="bt" type="text" inputmode="numeric" placeholder="설정 안 함" value="'+moneyStr(tot)+'"></div>';
   v.innerHTML=hdr("오늘")+'<div class="card" id="todayCard"></div>'+
-    hdr("이번 달 예산")+
+    hdr(inPeriod?"이번 기간 예산 · "+periodLabel(per):"이번 달 예산")+
     card(totRow+
       '<div style="padding:12px 16px 14px">'+
         '<div style="display:flex;justify-content:space-between;font-size:15px" class="tnum">'+
@@ -1001,10 +1039,10 @@ function renderBudget(){
         '<span style="color:var(--label2)" id="brest">'+(tot?"남은 "+fmt(Math.max(0,tot-used))+"원":"—")+'</span></div>'+
         '<div class="track"><i id="bfill" class="'+(pc>=100?"over":pc>=80?"warn":"")+'" style="width:'+pc+'%"></i></div>'+
         '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--label2)" class="tnum">'+
-        '<span>'+cur+'일째</span><span>'+Math.max(0,n-cur)+'일 남음</span></div>'+
-        '<div class="track"><i style="width:'+(cur/n*100)+'%;background:var(--indigo)"></i></div>'+
+        '<span>'+dayNo+'일째</span><span>'+Math.max(0,dayTot-dayNo)+'일 남음</span></div>'+
+        '<div class="track"><i style="width:'+(dayNo/dayTot*100)+'%;background:var(--indigo)"></i></div>'+
       '</div>')+
-    '<p class="note">'+(fromPlan?"총 예산은 배분 탭의 생활비 봉투 금액입니다. 바꾸려면 배분 탭에서 고치세요.":"배분 탭에서 실수령액과 생활비 봉투를 정하면 그 금액이 자동으로 총 예산이 됩니다.")+'</p>'+
+    '<p class="note">'+(fromPlan?"총 예산은 배분 탭의 생활비 봉투 금액입니다. 바꾸려면 배분 탭에서 고치세요. ":"배분 탭에서 실수령액과 생활비 봉투를 정하면 그 금액이 자동으로 총 예산이 됩니다. ")+(inPeriod?"기간은 메뉴의 월급날 설정을 따릅니다.":"메뉴에서 월급날을 정하면 월급날부터 다음 월급 전날까지를 한 기간으로 계산합니다.")+'</p>'+
     hdr("카테고리 예산")+'<div id="bcats"></div>';
   paintToday();
   const btRow=$("btRow");if(btRow)btRow.addEventListener("click",()=>{tab="plan";window.scrollTo({top:0});render();});
@@ -1485,7 +1523,7 @@ function renderSettings(){
   $("aiNameInput").value=aiName();$("aiModelInput").value=aiModel();
   $("aiKeyNote").style.color=builtinAiKey()?"":"var(--red)";
   if(!builtinAiKey())$("aiKeyNote").textContent=noKeyMsg+" (클라우드·CI 빌드는 GEMINI_API_KEY 시크릿이 있어야 키가 들어갑니다.)";
-  renderReminders();
+  renderReminders();renderPayday();
   if(!hasBridge()){
     host.innerHTML='<div class="row"><span class="t">알림 감지</span><span class="val">앱에서만 가능</span></div>';
     note.textContent="설치한 안드로이드 앱에서 카드사·은행·페이 앱 알림을 읽어 결제를 자동으로 모읍니다.";
@@ -1516,6 +1554,21 @@ function renderSettings(){
   bindDiagRow();
 }
 function bindDiagRow(){const r=$("setDiagRow");if(r)r.addEventListener("click",openDiag);}
+/* 월급날 설정 — 하루 예산 기간의 시작을 정한다(§4 budgetPeriod). 1일 + 다음날 꺼짐 = 달력 기준. */
+$("paydaySel").innerHTML=Array.from({length:31},(_,i)=>'<option value="'+(i+1)+'">'+(i+1)+'일'+(i===0?" (달력 기준)":"")+'</option>').join("");
+function renderPayday(){
+  $("paydaySel").value=String(Number(cfg.budget.payday)||1);
+  $("payNext").checked=!!cfg.budget.payNext;
+  const p=budgetPeriod();
+  $("paydayNote").textContent=p.calendar?"달력 한 달(1일~말일) 기준으로 오늘 쓸 수 있는 돈을 계산합니다.":
+    "이번 기간은 "+periodLabel(p)+" 입니다. 월급날부터 다음 월급 전날까지 예산을 나눠 씁니다.";
+}
+async function applyPayday(){
+  cfg.budget.payday=Number($("paydaySel").value)||1;cfg.budget.payNext=$("payNext").checked;
+  saveCfg();await ensureMonths(monthsIn(budgetPeriod()));renderPayday();render();
+}
+$("paydaySel").addEventListener("change",applyPayday);
+$("payNext").addEventListener("change",applyPayday);
 /* 하루 예산 알림 설정 — 네이티브 알람이라 앱에서만. 아침엔 오늘 쓸 수 있는 돈, 저녁엔 오늘 남은 돈. */
 function renderReminders(){
   const host=$("setRemind"),note=$("setRemindNote");
@@ -1566,10 +1619,13 @@ bindMoney($("fAmt"));
 $("fDel").addEventListener("click",()=>{txs=txs.filter(x=>x.id!==editId);saveMonth();closeSheet();render();toast("삭제했습니다");});
 function commit(rec){
   const target=rec.d.slice(0,7);
-  if(target===ym){txs.push(rec);saveMonth();}
-  else load("months/"+target).then(doc=>{
-    const list=(doc&&doc.txs)||[];list.push(rec);save("months/"+target,{txs:list});
+  if(target===ym){txs.push(rec);saveMonth();return;}
+  /* 다른 달: 캐시(MON)를 기준으로 붙인다. localStorage 를 매번 읽으면 save 디바운스(400ms) 안에
+     두 건을 연달아 넣을 때 앞 건이 사라진다. */
+  ensureMonths([target]).then(()=>{
+    const list=MON[target];list.push(rec);save("months/"+target,{txs:list});
     const t=totals(list);summary[target]={i:t.i,e:t.e,s:t.s};save("index/summary",{months:summary});
+    renderTop();
   });
 }
 $("fSave").addEventListener("click",()=>{
@@ -2662,7 +2718,8 @@ $("next").addEventListener("click",()=>shift(1));
 /* ── 초기화 ── */
 async function loadMonth(){
   const doc=await load("months/"+ym);
-  txs=(doc&&Array.isArray(doc.txs))?doc.txs:[];
+  txs=(doc&&Array.isArray(doc.txs))?doc.txs:[];MON[ym]=txs;
+  await ensureMonths(monthsIn(budgetPeriod()));
   const gdoc=await load("game/"+ym);
   games=(gdoc&&Array.isArray(gdoc.items))?gdoc.items:[];
   let moved=0;

@@ -350,9 +350,13 @@ public class MainActivity extends AppCompatActivity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri u = request.getUrl();
                 if (u != null && ORIGIN_HOST.equals(u.getHost())) return false;
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, u));
-                } catch (Exception ignored) {
+                // 밖으로 넘기는 건 http/https 만. intent:·file:·tel: 같은 스킴은 열지 않는다 (보안 점검 2026-09-29)
+                String sch = u == null ? null : u.getScheme();
+                if ("http".equals(sch) || "https".equals(sch)) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, u));
+                    } catch (Exception ignored) {
+                    }
                 }
                 return true;
             }

@@ -5,4 +5,6 @@
     <include domain="file" path="." />
     <exclude domain="file" path="live" />
     <include domain="sharedpref" path="." />
+    <!-- 결제 알림 원문(감지 기록·대기열)은 폰 밖으로 내보내지 않는다 -->
+    <exclude domain="sharedpref" path="pay_pending.xml" />
 </full-backup-content>

@@ -23,7 +23,7 @@ ledger/
 ├─ tools/                  개발용 — artifact-preview.html(미리보기 무대), setup-android.sh(클라우드 빌드 환경), character-full.png(원본 일러스트)
 ├─ PRIVACY.md              개인정보처리방침 (스토어 제출용, 알림 접근 권한 설명)
 ├─ keystore.properties.example   릴리스 서명 설정 본보기 (실제 파일·jks 는 gitignore)
-└─ .github/workflows/build-apk.yml   push하면 테스트 → 디버그 APK, 시크릿 있으면 릴리스 APK/AAB
+└─ .github/workflows/build-apk.yml   push하면 테스트 → 디버그 APK(Gemini 키 없음 — 공개 아티팩트라, §7 보안 점검), 시크릿 있으면 릴리스 APK/AAB
 ```
 
 빌드: AGP 8.9.1 / Gradle 8.11.1 / JDK 17 / compileSdk 36 / targetSdk 36 / minSdk 24. Gradle 래퍼 jar는 없다(CI는 `gradle/actions/setup-gradle`). 로컬(윈도우 PC): JDK 17 은 `C:\Users\winz\.dal-bbam-android\jdk17\jdk-17.0.20.1+1`, Gradle 8.11.1 은 `~/.gradle/wrapper/dists` 에 캐시돼 있고, Android SDK 는 `C:\Users\winz\AppData\Local\Android\Sdk`. 안드로이드 스튜디오 번들 JBR(25)로는 Gradle 이 안 돈다. **클라우드 세션(리눅스)** 에서는 `tools/setup-android.sh` 가 이 셋을 홈 밑에 깐다(§8).
@@ -207,6 +207,7 @@ ledger/
 
 ## 7. 알려진 할 일 / 주의
 
+- **보안 점검(2026-09-29, 저장소 전체)** 결과 고친 것: ① 딥링크 로그인을 PKCE 로 — 예전 `#access_token=` 방식은 다른 앱이 임의 토큰 딥링크로 남의 계정에 로그인시켜 기록을 빼갈 수 있었다(`cloudGoogle`/`__oauth`, `gb:cloud/pkce`, 로그인 중엔 딥링크 무시). ② 봉투 `color`·게임 제품 카테고리 `grp` 가 `esc()` 없이 innerHTML 로 들어가던 저장형 XSS(백업·서버 스냅샷 경유) — `colorOf` 는 `PAL` 밖 값을 버리고 `hdr(esc(gn))`. ③ CI 디버그 APK 에 Gemini 키를 넣지 않음 — 공개 저장소 아티팩트는 누구나 받는다. AI 든 APK 는 PC `.env` 또는 클라우드 세션 환경 변수로 직접 빌드. **기존 키는 공개 아티팩트에 며칠 노출됐으니 사용자가 새 키로 바꾸고 Generative Language API 로 제한하는 게 맞다.** ④ `shouldOverrideUrlLoading` 은 http/https 만 밖으로. ⑤ `pay_pending.xml`(알림 원문)을 자동 백업·기기 이전에서 제외. Supabase 쪽: 스냅샷 8MB 상한, anon 권한 회수, 어드바이저 경고 0(남은 WARN 은 유출 비밀번호 보호 — 비밀번호 로그인을 안 쓰니 무관). 다시 점검할 때는 innerHTML 에 들어가는 값이 전부 `esc()` 를 거치는지부터 본다.
 - 클라우드 동기화(2026-09-29): Google 콘솔 웹·Android 클라이언트, Supabase Google provider·Redirect URL 은 사용자가 설정 완료(1.9.1 에 웹 클라이언트 ID 내장). Google 동의 화면이 테스트 모드면 로그인할 계정을 테스트 사용자로 넣어야 한다. 실기기에서 계정 선택창·브라우저 대체 경로 복귀 확인 필요. 릴리스 키로 서명하면 그 SHA-1 로 Android 클라이언트를 하나 더 만들어야 한다.
 
 - 알림 감지 실기기 확인 상황(2026-09-26): 삼성 월렛(`₩151,600 결제 완료\n가게`)·토스뱅크 카드(`454원 캐시백 🎉\n151,600원 결제 | 가게\n잔액 0원(...)`) 원문을 `parser.test.js` 에 넣었다. 같은 결제를 삼성 월렛과 토스가 각각 알려서 대기열에 두 번 들어오는데, **사용자가 "중복이어도 상관없다, 어차피 확인하고 등록한다" 고 재확인**(2026-09-26) — 앞으로도 합치지 않는다. **막히면 설정 › 감지 기록 보기(§4 진단 화면)를 먼저 볼 것.** 파서는 `tests/parser.test.js` 의 문구 모음으로 검증한 것이고, 실제 카드사 문구가 다르면 그 원문을 테스트에 추가하고 파서를 고친다.

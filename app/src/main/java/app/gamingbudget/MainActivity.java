@@ -198,6 +198,15 @@ public class MainActivity extends AppCompatActivity {
      *  nonce 는 SHA-256 hex 해시를 Google 에, 원문을 Supabase 에 준다(Supabase 가 해시해서 토큰과 비교).
      *  실패는 __googleFail(why) — cancelled / no_account / 그 외 문자열. 페이지는 취소가 아니면 브라우저 방식으로 간다. */
     private void googleSignIn() {
+        // 라이브러리·Play 서비스 쪽에서 예외가 나면 페이지가 영원히 "로그인 중" 에 머물지 않게 이유를 돌려준다
+        try {
+            googleSignInInner();
+        } catch (Throwable t) {
+            googleFail("exception: " + t);
+        }
+    }
+
+    private void googleSignInInner() {
         String clientId = getString(R.string.google_web_client_id).trim();
         if (clientId.isEmpty()) { googleFail("no_client_id"); return; }
         final String rawNonce = UUID.randomUUID().toString();
@@ -238,7 +247,7 @@ public class MainActivity extends AppCompatActivity {
                     public void onError(GetCredentialException e) {
                         if (e instanceof GetCredentialCancellationException) googleFail("cancelled");
                         else if (e instanceof NoCredentialException) googleFail("no_account");
-                        else googleFail(e.getType() + ": " + e.getMessage());
+                        else googleFail(e.getClass().getSimpleName() + " " + e.getType() + ": " + e.getMessage());
                     }
                 });
     }

@@ -557,6 +557,7 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
     <p class="loginmsg">결제 알림을 모아 기록하고 오늘 쓸 수 있는 돈을 알려 줍니다.<br>Google 계정으로 로그인하면 기록이 서버에도 저장돼 폰을 바꿔도 그대로입니다.</p>
     <button class="btn" id="loginGoogle"><svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#fff" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.2-.1-2.4-.4-3.5z"/></svg>Google 계정으로 시작하기</button>
     <p class="note" id="loginNote"></p>
+    <button id="loginBrowser" style="color:var(--blue);font-size:15px;padding:8px 12px">브라우저로 로그인</button>
   </div>
 </div>
 
@@ -887,13 +888,19 @@ function loginBusy(b,msg){
   btn.lastChild.textContent=b?"로그인 중…":"Google 계정으로 시작하기";
   $("loginNote").textContent=msg||"";
 }
+let loginWatch=null;
 function startGoogle(){
   loginBusy(true);
   let ok=false;
   try{ok=!!(window.Android&&window.Android.googleSignIn&&window.Android.googleSignIn());}catch(e){ok=false;}
-  if(!ok){loginBusy(false,"브라우저로 로그인합니다…");cloudGoogle();}
+  if(!ok){loginBusy(false,"브라우저로 로그인합니다…");cloudGoogle();return;}
+  /* 계정 선택창이 성공도 실패도 안 돌려주면(폰의 자격 증명 서비스가 멈춘 경우) 20초 뒤 버튼을 풀어 준다 */
+  clearTimeout(loginWatch);
+  loginWatch=setTimeout(()=>{loginBusy(false,"계정 선택창에서 응답이 없습니다. 다시 누르거나 아래 브라우저 로그인을 써 주세요.");},20000);
 }
+function startBrowser(){clearTimeout(loginWatch);loginBusy(false,"브라우저에서 로그인한 뒤 앱으로 돌아옵니다.");cloudGoogle();}
 window.__googleToken=async function(idToken,nonce){
+  clearTimeout(loginWatch);
   try{
     const b=await sbFetch("/auth/v1/token?grant_type=id_token",{method:"POST",body:JSON.stringify({provider:"google",id_token:idToken,nonce:nonce||undefined})});
     setCloudSession(sessionFrom(b,""));
@@ -902,12 +909,14 @@ window.__googleToken=async function(idToken,nonce){
   }catch(e){loginBusy(false,"로그인 실패: "+e.message);toast("로그인 실패: "+e.message);}
 };
 window.__googleFail=function(why){
+  clearTimeout(loginWatch);
   why=String(why||"");
   const known={cancelled:"로그인을 취소했습니다",no_account:"이 폰에 Google 계정이 없어 브라우저로 로그인합니다",no_client_id:"이 빌드에 Google 클라이언트 ID 가 없어 브라우저로 로그인합니다"};
   loginBusy(false,known[why]||("계정 선택창을 못 띄워 브라우저로 로그인합니다 ("+why+")"));
   if(why!=="cancelled")cloudGoogle();
 };
 $("loginGoogle").addEventListener("click",startGoogle);
+$("loginBrowser").addEventListener("click",startBrowser);
 /* Google 로그인(브라우저 방식): Supabase 의 authorize 로 보내면 브라우저에서 Google 로그인 뒤 SB_REDIRECT 딥링크로 돌아온다.
    앱에서는 우리 오리진 밖 이동을 네이티브가 브라우저로 넘긴다(§2). 돌아온 URL 은 네이티브가 __oauth(url) 로 준다. */
 function cloudGoogle(){

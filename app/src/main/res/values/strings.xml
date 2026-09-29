@@ -10,5 +10,5 @@
     <!-- Google 로그인(안드로이드 계정 선택창). Google Cloud 콘솔의 "웹 애플리케이션" OAuth 클라이언트 ID
          (…apps.googleusercontent.com). 비밀번호가 아니라 공개 식별자라 여기 둬도 된다. 비어 있으면 앱은
          브라우저를 열어 로그인한다. 같은 값을 Supabase › Google provider 의 Client IDs 에도 넣어야 한다. -->
-    <string name="google_web_client_id" translatable="false"></string>
+    <string name="google_web_client_id" translatable="false">1081256229541-cjal9tc1gjca3emevgboc0c3mordnc4t.apps.googleusercontent.com</string>
 </resources>

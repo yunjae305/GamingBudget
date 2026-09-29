@@ -262,26 +262,7 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 #loginScreen{z-index:70;transition:none;overflow:hidden}
 #loginScreen.bye{animation:loginOut .4s cubic-bezier(.4,0,1,1) forwards}
 @keyframes loginOut{to{opacity:0;transform:scale(1.06)}}
-/* 배경: 천천히 흐르는 빛 덩어리 3개 + 떠오르는 ₩ 입자 */
-.loginbg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
-.loginbg i{position:absolute;width:70vmax;height:70vmax;border-radius:50%;filter:blur(50px);opacity:.32;will-change:transform}
-:root[data-theme="dark"] .loginbg i{opacity:.5}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .loginbg i{opacity:.5}}
-.loginbg i:nth-child(1){background:radial-gradient(circle,#007AFF 0%,rgba(0,122,255,0) 62%);top:-30vmax;left:-25vmax;animation:blobA 14s ease-in-out infinite}
-.loginbg i:nth-child(2){background:radial-gradient(circle,#5856D6 0%,rgba(88,86,214,0) 62%);bottom:-35vmax;right:-25vmax;animation:blobB 18s ease-in-out infinite}
-.loginbg i:nth-child(3){background:radial-gradient(circle,#34C759 0%,rgba(52,199,89,0) 62%);top:35%;left:20%;width:45vmax;height:45vmax;opacity:.22;animation:blobC 16s ease-in-out infinite}
-@keyframes blobA{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(18vmax,14vmax) scale(1.2)}}
-@keyframes blobB{0%,100%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-16vmax,-18vmax) scale(.9)}}
-@keyframes blobC{0%,100%{transform:translate(0,0)}33%{transform:translate(14vmax,-10vmax)}66%{transform:translate(-10vmax,8vmax)}}
-.loginbg b{position:absolute;bottom:-8%;font-weight:700;color:var(--blue);opacity:0;animation:rise linear infinite;will-change:transform}
-.loginbg b:nth-child(4){left:8%;font-size:22px;animation-duration:11s;animation-delay:0s}
-.loginbg b:nth-child(5){left:22%;font-size:14px;animation-duration:14s;animation-delay:3s}
-.loginbg b:nth-child(6){left:38%;font-size:30px;animation-duration:17s;animation-delay:6s}
-.loginbg b:nth-child(7){left:55%;font-size:16px;animation-duration:12s;animation-delay:1.5s}
-.loginbg b:nth-child(8){left:70%;font-size:26px;animation-duration:15s;animation-delay:8s}
-.loginbg b:nth-child(9){left:84%;font-size:18px;animation-duration:13s;animation-delay:4.5s}
-.loginbg b:nth-child(10){left:92%;font-size:12px;animation-duration:19s;animation-delay:10s}
-@keyframes rise{0%{transform:translateY(0) rotate(0deg);opacity:0}10%{opacity:.28}90%{opacity:.12}100%{transform:translateY(-115vh) rotate(40deg);opacity:0}}
+/* 배경은 단색 (사용자 결정 2026-09-29: 심플하게). 움직임은 표식·제목·버튼에만 */
 .loginbody{flex:1;display:flex;flex-direction:column;position:relative;
   padding:calc(var(--sat) / var(--zoom, 1) + 24px) 24px calc(var(--sab) / var(--zoom, 1) + 28px)}
 .loginbrand{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center}
@@ -313,8 +294,7 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .gbtn.busy::after{animation:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){
-  .loginbg i,.loginbg b,.markwrap,.markwrap::before,.markwrap::after,.loginmark,.logintitle,.loginmsg,.loginactions,.gbtn::after,#loginScreen.bye{animation:none!important;opacity:1}
-  .loginbg b{display:none}
+  .markwrap,.markwrap::before,.markwrap::after,.loginmark,.logintitle,.loginmsg,.loginactions,.gbtn::after,#loginScreen.bye{animation:none!important;opacity:1}
 }
 :root[data-theme="dark"] .gbtn{background:#131314;border-color:#8e918f;color:#e3e3e3}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .gbtn{background:#131314;border-color:#8e918f;color:#e3e3e3}}
@@ -604,7 +584,6 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
 </div>
 
 <div class="screen" id="loginScreen" role="dialog" aria-label="로그인">
-  <div class="loginbg" aria-hidden="true"><i></i><i></i><i></i><b>₩</b><b>₩</b><b>₩</b><b>₩</b><b>₩</b><b>₩</b><b>₩</b></div>
   <div class="loginbody">
     <div class="loginbrand">
       <div class="markwrap"><div class="loginmark" aria-hidden="true">₩</div></div>

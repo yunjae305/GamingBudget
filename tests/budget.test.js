@@ -1,4 +1,4 @@
-/* 하루 예산 · 예산 계산기 · 내역 검색 · 통계(일별·히트맵·요일별) · 영수증 스캔 */
+/* 하루 예산 · 예산 계산기 · 통계(일별·히트맵·요일별) · 영수증 스캔 */
 const { boot, wait, assert } = require("./helpers");
 
 module.exports = async function () {
@@ -133,23 +133,12 @@ module.exports = async function () {
   assert($("ym").textContent === now.getFullYear() + "년 " + (now.getMonth() + 1) + "월", "'이번 달' 로 돌아와야 함");
   assert(!$("calScreen"), "전체 화면 달력은 없어야 함");
 
-  /* 내역 목록 검색·필터 */
+  /* 내역 목록 보기: 검색·카테고리 필터 없이 그 달 기록 전부 (사용자 결정 2026-09-29) */
   d.querySelector('[data-tab="tx"]').click(); await wait(20);
   d.querySelector('#mode [data-m="list"]').click(); await wait(20);
-  assert($("txQ") && $("txCatSel"), "목록 보기에 검색 칸과 카테고리 선택이 있어야 함");
+  assert(!$("txQ") && !$("txCatSel") && !d.querySelector(".searchbar"), "목록 보기에 검색 칸·카테고리 선택이 없어야 함");
   const rows = () => d.querySelectorAll("#txList .row.tap").length;
-  const total = rows();
-  type("txQ", "스타"); await wait(20);
-  assert(rows() === 1, "'스타' 검색 → 1건 — 실제: " + rows());
-  assert(/1건/.test($("txList").textContent), "검색 중엔 건수·합계가 보여야 함");
-  type("txQ", "없는말"); await wait(20);
-  assert(/검색 결과가 없습니다/.test($("txList").textContent), "결과 없음 안내");
-  type("txQ", ""); await wait(20);
-  assert(rows() === total, "검색을 지우면 전체 — 실제: " + rows());
-  $("txCatSel").value = "식비"; $("txCatSel").dispatchEvent(new w.Event("change")); await wait(20);
-  assert(rows() === total, "기본 카테고리(식비)로 저장됐으니 전부 보여야 함 — 실제: " + rows());
-  $("prev").click(); await wait(80); $("next").click(); await wait(80);
-  assert($("txCatSel").value === "" && rows() === total, "달을 갔다 오면 없던 카테고리 필터는 풀려야 함 — 실제: " + $("txCatSel").value + "/" + rows());
+  assert(rows() === (day > 1 ? 2 : 1), "이달 기록이 전부 보여야 함 — 실제: " + rows());
 
   /* 통계: 일별·히트맵·요일별 */
   d.querySelector('[data-tab="stat"]').click(); await wait(30);

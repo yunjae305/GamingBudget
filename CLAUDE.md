@@ -11,7 +11,7 @@
 ```
 ledger/
 ├─ app/src/main/assets/index.html   ← 앱 전체 (HTML+CSS+JS 단일 파일, 약 2천 줄)
-├─ app/src/main/java/net/nn33/ledger/
+├─ app/src/main/java/app/gamingbudget/   ← 패키지 `app.gamingbudget` (2026-09-29 사용자 결정으로 `net.nn33.ledger` 에서 변경 — 안드로이드에는 **다른 앱**이라 옛 앱 위에 덮어쓰기 안 됨, 기록·알림 접근·알림 권한은 옮겨지지 않음. 기록은 클라우드 동기화나 백업 파일로 옮긴다. 딥링크 스킴은 `gamingbudget://login`)
 │   ├─ MainActivity.java   WebView 호스트, 자동 업데이트, 파일 선택, JS 브리지, 뒤로가기
 │   ├─ PayListener.java    NotificationListenerService — 결제 알림 원문 수집
 │   ├─ PendingStore.java   수집한 알림을 SharedPreferences에 보관
@@ -57,7 +57,7 @@ ledger/
 - `rescanNotifs()` → 지금 상태 바에 떠 있는 알림을 다시 훑는다(§3 재스캔). `notifLog()` / `notifStats()` / `clearNotifLog()` / `noteDropped(pkg,text,time,why)` → 알림 감지 진단용 (§4 진단 화면)
 - `reminders()` → 하루 예산 알림 상태 `{on,morning,evening,granted,needsPermission}`. `setReminders(on,"HH:MM","HH:MM")` → 저장하고 알람 재등록. `askNotifPermission()` → 안드로이드 13+ 알림 권한 요청(결과 `__notifPerm(granted)`). `testReminder(evening)` → 지금 알림 하나 띄워 보기
 
-네이티브 → 화면: `__pullPending()`(onResume), `__back()`(뒤로가기), `__savedFile(ok)`, `__notifPerm(granted)`, `__cameraShot(mime,b64)`, `__oauth(url)`(Google 로그인 딥링크 `net.nn33.ledger://login#access_token=…` — 매니페스트 intent-filter + `launchMode="singleTask"`, `onNewIntent`/`onCreate` 의 `handleLink` 가 페이지가 뜬 뒤 넘김), 그리고 창 인셋을 `--sat`/`--sab` CSS 변수로 밀어 넣는다.
+네이티브 → 화면: `__pullPending()`(onResume), `__back()`(뒤로가기), `__savedFile(ok)`, `__notifPerm(granted)`, `__cameraShot(mime,b64)`, `__oauth(url)`(Google 로그인 딥링크 `gamingbudget://login#access_token=…` — 매니페스트 intent-filter + `launchMode="singleTask"`, `onNewIntent`/`onCreate` 의 `handleLink` 가 페이지가 뜬 뒤 넘김), 그리고 창 인셋을 `--sat`/`--sab` CSS 변수로 밀어 넣는다.
 
 **하루 예산 알림** — `Reminders` 가 `AlarmManager.setAndAllowWhileIdle` 로 아침·저녁 다음 회차를 걸고, 울리면 알림을 띄운 뒤 다음 날 것을 다시 건다(정확한 알람 권한 불필요, 절전 중엔 몇 분 늦을 수 있음). 숫자는 화면이 못 보는 시간에도 계산해야 해서 `files/mirror.json` 에서 읽는다 — 화면의 `dailyBudget()` 과 같은 규칙(월급날 기간 `budget.payday`/`payNext` 포함, 기간이 걸친 두 달을 읽음). 총 예산이 없으면 그날은 알림을 띄우지 않는다. 앱 시작(`onCreate`)과 재부팅(`BootReceiver`) 때 `schedule()` 로 재정비. 설정은 SharedPreferences `reminders`(localStorage·백업 밖).
 
@@ -105,10 +105,10 @@ ledger/
 
 ### 클라우드 동기화 (Supabase, 2026-09-29)
 - 프로젝트 `ledger`(ref `jxjmrxusumcbfgwzqdrd`, 서울 ap-northeast-2), 조직 "yunjae305's Org". 테이블 `public.snapshots(user_id pk → auth.users, data jsonb, at, device, updated_at)` + RLS(본인 행만 select/insert/update/delete). 마이그레이션은 MCP `apply_migration` 으로 넣었다(`ledger_snapshots`). 무료 플랜 활성 2개 제한 때문에 `itsmine` 을 일시정지하고 만들었다(사용자 지시).
-- 페이지는 라이브러리 없이 REST 로 직접 부른다: `SB_URL`/`SB_KEY`(publishable 키 — 공개용이라 코드에 둠) → `sbFetch(path,opt,auth)` 가 apikey·Bearer 헤더, 만료 60초 전 `cloudRefresh`, 오류 코드를 `AUTH_MSG` 로 한국어화. 로그인 `cloudLogin`(password grant)·`cloudSignUp`(확인 메일)·`cloudGoogle`(`/auth/v1/authorize?provider=google&redirect_to=net.nn33.ledger://login` 으로 이동 → 네이티브가 브라우저로 넘김 → 딥링크로 돌아와 `__oauth(url)` 이 조각의 토큰을 세션으로, `/auth/v1/user` 로 이메일).
+- 페이지는 라이브러리 없이 REST 로 직접 부른다: `SB_URL`/`SB_KEY`(publishable 키 — 공개용이라 코드에 둠) → `sbFetch(path,opt,auth)` 가 apikey·Bearer 헤더, 만료 60초 전 `cloudRefresh`, 오류 코드를 `AUTH_MSG` 로 한국어화. 로그인 `cloudLogin`(password grant)·`cloudSignUp`(확인 메일)·`cloudGoogle`(`/auth/v1/authorize?provider=google&redirect_to=gamingbudget://login` 으로 이동 → 네이티브가 브라우저로 넘김 → 딥링크로 돌아와 `__oauth(url)` 이 조각의 토큰을 세션으로, `/auth/v1/user` 로 이메일).
 - **폰의 localStorage 가 기준, 서버는 복사본.** `scheduleMirror()` 가 `scheduleCloud()` 도 불러 4초 뒤 `cloudPush()` 가 `dumpAll()` 한 벌을 upsert(`Prefer: resolution=merge-duplicates`). 실패하면 `dirty` 표시 → `__pullPending`(onResume)·`cloudCheck`(init) 때 다시. `afterLogin()`: 서버 비었으면 올리고, 폰 비었으면 `takeServer()`(restoreAll + reload), 둘 다 있으면 `#cloudAlert` 로 묻는다. `cloudCheck(manual)`: 서버 `at` 가 로컬 `gb:cloud/at` 보다 새로우면(다른 기기) 묻고, 아니면 밀린 변경/수동이면 올린다. 백업 파일 가져오기 뒤에도 `dirty` 를 켜서 서버에 반영.
 - 메뉴 시트 "클라우드 동기화" 카드(`renderCloud()`): 로그아웃 상태는 이메일·비밀번호·로그인·가입·Google 행, 로그인 상태는 계정·지금 동기화(마지막 시각/올릴 변경 있음)·로그아웃. `#bkNote` 문구도 상태 따라 바꾼다.
-- **대시보드에서만 되는 설정**(MCP 로 못 함, README "클라우드 동기화" 참고): Redirect URLs 에 `net.nn33.ledger://login`, Google provider 의 클라이언트 ID·비밀번호(Google Cloud 콘솔 웹 애플리케이션 클라이언트, 리디렉션 URI `https://jxjmrxusumcbfgwzqdrd.supabase.co/auth/v1/callback`). 비밀번호 값은 채팅·파일에 적지 않는다.
+- **대시보드에서만 되는 설정**(MCP 로 못 함, README "클라우드 동기화" 참고): Redirect URLs 에 `gamingbudget://login`, Google provider 의 클라이언트 ID·비밀번호(Google Cloud 콘솔 웹 애플리케이션 클라이언트, 리디렉션 URI `https://jxjmrxusumcbfgwzqdrd.supabase.co/auth/v1/callback`). 비밀번호 값은 채팅·파일에 적지 않는다.
 - 테스트 `tests/cloud.test.js` 가 fetch 를 흉내 내 로그인 오류 문구, 올리기/받기/묻기, 저장 뒤 자동 올리기, 딥링크 `__oauth`, 로그아웃, 백업 파일에 토큰이 없는지 확인한다.
 
 `cfg` = `{budget:{total,cat:{},payday,payNext}, plan:{income,envelopes[{id,name,pct,mode:"pct"|"amt",amt,saving,color}],goal,budgetEnv}, assets[], gameNames[], gameGuard:{month,daily,perGame{}}, gameGrps:{게임:[카테고리]}, gameProducts:{게임:[{id,name,desc,price,grp}]}}`

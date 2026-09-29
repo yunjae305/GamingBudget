@@ -40,15 +40,15 @@ def aiKeyLiteral = '"' + aiKey.replace('\\', '\\\\').replace('"', '\\"') + '"'
 def aiKeyInRelease = (env['AI_KEY_IN_RELEASE'] ?: System.getenv("AI_KEY_IN_RELEASE") ?: "false").trim() == "true"
 
 android {
-    namespace 'net.nn33.ledger'
+    namespace 'app.gamingbudget'
     compileSdk 36
 
     defaultConfig {
-        applicationId "net.nn33.ledger"
+        applicationId "app.gamingbudget"
         minSdk 24
         targetSdk 36
-        versionCode 8
-        versionName "1.7"
+        versionCode 9
+        versionName "1.8"
     }
 
     signingConfigs {

@@ -1,4 +1,4 @@
-package net.nn33.ledger;
+package app.gamingbudget;
 
 import android.app.Notification;
 import android.content.ComponentName;

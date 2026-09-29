@@ -1,4 +1,4 @@
-package net.nn33.ledger;
+package app.gamingbudget;
 
 import android.app.AlarmManager;
 import android.app.Notification;
@@ -36,8 +36,8 @@ import java.util.Locale;
 final class Reminders {
     static final String PREF = "reminders";
     static final String CHANNEL = "daily_budget";
-    static final String ACT_MORNING = "net.nn33.ledger.REMIND_MORNING";
-    static final String ACT_EVENING = "net.nn33.ledger.REMIND_EVENING";
+    static final String ACT_MORNING = "app.gamingbudget.REMIND_MORNING";
+    static final String ACT_EVENING = "app.gamingbudget.REMIND_EVENING";
     private static final int REQ_MORNING = 11, REQ_EVENING = 12, NOTIF_ID = 7;
 
     private Reminders() {}

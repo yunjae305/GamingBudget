@@ -2,10 +2,10 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<title>가계부</title>
 <!-- CSP (보안 점검 2026-09-29): 혹시 XSS 가 생겨도 데이터가 나갈 곳을 Supabase·Gemini 로 묶는다. 앱은 인라인 스크립트·스타일이라 unsafe-inline 은 허용. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://jxjmrxusumcbfgwzqdrd.supabase.co https://generativelanguage.googleapis.com; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>가계부</title>
 <script>
 try{var t=localStorage.getItem("gb:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}
 </script>

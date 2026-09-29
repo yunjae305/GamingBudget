@@ -173,10 +173,6 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .heat.on{color:var(--label)}
 .heat.hot{color:#fff}
 .heat.today{box-shadow:inset 0 0 0 2px var(--blue)}
-.searchbar{display:flex;gap:8px;margin:0 16px 14px}
-.searchbar input{flex:1;min-width:0;height:36px;border-radius:10px;background:var(--fill);padding:0 12px;font-size:15px;color:var(--label)}
-.searchbar input::placeholder{color:var(--label3)}
-.searchbar select{height:36px;border-radius:10px;background:var(--fill);padding:0 10px;font-size:14px;color:var(--label);appearance:none;max-width:44%}
 /* 달 선택 휠 — iOS 피커처럼 스크롤로 고른다. 칸 높이 36px, 위아래 90px 여백이라 가운데 칸이 선택. */
 .wheels{position:relative;display:flex;margin:4px 16px 6px;height:216px;background:var(--group);border-radius:var(--r);overflow:hidden}
 .wheelbar{position:absolute;left:8px;right:8px;top:90px;height:36px;border-radius:9px;background:var(--fill)}
@@ -1210,22 +1206,10 @@ function renderTx(){
     if(!txSel)body.insertAdjacentHTML("beforeend",hdr("날짜를 누르면 그날 기록을 봅니다. 기록을 누르면 고칠 수 있습니다."));
   }
   else{
-    /* 검색·카테고리 필터 (목록 보기에서만). 입력 중에는 목록만 갈아 끼워 커서를 유지한다. */
-    const cats=Array.from(new Set(txs.map(x=>x.cat))).sort();
-    if(txCat&&!cats.includes(txCat))txCat="";  /* 달을 바꿔 그 카테고리가 없으면 필터 해제 (안 보이는 필터가 남지 않게) */
-    body.innerHTML='<div class="searchbar"><input type="search" id="txQ" placeholder="검색 (메모·카테고리)" autocomplete="off" value="'+esc(txQ)+'">'+
-      '<select id="txCatSel" aria-label="카테고리"><option value="">전체</option>'+cats.map(c=>'<option'+(c===txCat?" selected":"")+'>'+esc(c)+'</option>').join("")+'</select></div>'+
-      '<div id="txList"></div>';
-    const paint=()=>{const L=$("txList");L.innerHTML="";L.appendChild(listEl());};
-    $("txQ").addEventListener("input",e=>{txQ=e.target.value;paint();});
-    $("txCatSel").addEventListener("change",e=>{txCat=e.target.value;paint();});
-    paint();
+    /* 목록 보기. 검색·카테고리 필터는 뺐다(사용자 결정 2026-09-29). */
+    body.innerHTML='<div id="txList"></div>';
+    $("txList").appendChild(listEl());
   }
-}
-let txQ="",txCat="";
-function txFiltered(){
-  const q=txQ.trim().toLowerCase();
-  return txs.filter(x=>(!txCat||x.cat===txCat)&&(!q||(x.cat+" "+(x.memo||"")).toLowerCase().includes(q)));
 }
 function calCard(key,list,onDay,sel){
   const map={};(list||[]).forEach(t=>{(map[t.d]=map[t.d]||[]).push(t);});
@@ -1261,13 +1245,7 @@ function calEl(){
 function listEl(){
   const box=document.createElement("div");
   if(!txs.length){box.innerHTML=card('<p class="empty">이 달 내역이 없습니다.<br>오른쪽 위 ＋ 로 추가하세요.</p>');return box;}
-  const list=txFiltered(),filtering=txQ.trim()||txCat;
-  if(!list.length){box.innerHTML=card('<p class="empty">검색 결과가 없습니다.</p>');return box;}
-  if(filtering){
-    const t=totals(list);
-    box.insertAdjacentHTML("beforeend",'<p class="hdr tnum">'+list.length+'건'+(t.e?' · 지출 '+fmt(t.e)+'원':'')+(t.i?' · 수입 '+fmt(t.i)+'원':'')+(t.s?' · 저축 '+fmt(t.s)+'원':'')+'</p>');
-  }
-  const map={};list.forEach(t=>{(map[t.d]=map[t.d]||[]).push(t);});
+  const map={};txs.forEach(t=>{(map[t.d]=map[t.d]||[]).push(t);});
   Object.keys(map).sort((a,b)=>b.localeCompare(a)).forEach(d=>{
     const t=totals(map[d]),day=new Date(d+"T00:00:00");
     let head=Number(d.slice(5,7))+"월 "+Number(d.slice(8))+"일 ("+["일","월","화","수","목","금","토"][day.getDay()]+")";

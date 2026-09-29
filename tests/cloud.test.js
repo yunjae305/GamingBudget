@@ -18,6 +18,10 @@ function makeServer() {
       if (!body.nonce) return res(400, { code: 400, error_code: "bad_id_token", msg: "Passed nonce and nonce in id_token should either both exist or not." });
       return res(200, { access_token: "at-" + body.id_token, refresh_token: "rt1", expires_in: 3600, user: { id: "uid-1", email: "me@gmail.com" } });
     }
+    if (u.includes("/auth/v1/token?grant_type=pkce")) {
+      if (!body.auth_code || !body.code_verifier) return res(400, { code: 400, error_code: "validation_failed", msg: "bad" });
+      return res(200, { access_token: "at-" + body.auth_code, refresh_token: "rt-p", expires_in: 3600, user: { id: "uid-1", email: "me@gmail.com" } });
+    }
     if (u.includes("/auth/v1/user")) return res(200, { id: "uid-1", email: "me@gmail.com" });
     if (u.includes("/auth/v1/logout")) return res(204, null);
     if (u.includes("/rest/v1/snapshots")) {
@@ -124,20 +128,36 @@ module.exports = async function () {
   g.$("loginGoogle").click(); await wait(20);
   assert(/브라우저/.test(g.$("loginNote").textContent) && !g.$("loginGoogle").disabled, "계정 선택창을 못 띄우면 브라우저 안내 — 실제: " + g.$("loginNote").textContent);
   assert(!g.$("loginBrowser"), "브라우저 로그인 버튼은 없어야 함 (사용자 결정)");
-  await g.w.__oauth("gamingbudget://login#error=access_denied&error_description=cancelled"); await wait(50);
+  await wait(100);
+  const pk = JSON.parse(g.w.localStorage.getItem("gb:cloud/pkce") || "null");
+  assert(pk && pk.v && pk.v.length >= 40, "브라우저 방식은 PKCE 검증자를 만들어 둬야 함 — 실제: " + JSON.stringify(pk));
+  /* 로그인 CSRF 방지: 조각(#)에 토큰을 실은 딥링크는 세션을 만들지 않는다 */
+  await g.w.__oauth("gamingbudget://login#access_token=at2&expires_in=3600&refresh_token=rt2&token_type=bearer"); await wait(100);
+  assert(!g.w.localStorage.getItem("gb:cloud/session") && loginOpen(g), "토큰을 실은 딥링크는 무시해야 함");
+  await g.w.__oauth("gamingbudget://login?error=access_denied&error_code=access_denied&error_description=cancelled"); await wait(50);
   assert(/로그인 실패/.test(g.$("toast").textContent) && loginOpen(g), "오류 딥링크는 안내만, 로그인 화면 유지");
-  await g.w.__oauth("gamingbudget://login#access_token=at2&expires_in=3600&refresh_token=rt2&token_type=bearer&type=signup"); await wait(200);
+  assert(g.w.localStorage.getItem("gb:cloud/pkce"), "오류 딥링크가 검증자를 지우면 안 됨");
+  await g.w.__oauth("gamingbudget://login?code=code-1"); await wait(300);
+  const ex = srv.calls.find((c) => c.url.includes("grant_type=pkce"));
+  assert(ex && ex.body.auth_code === "code-1" && ex.body.code_verifier === pk.v, "code 를 검증자와 함께 교환해야 함 — 실제: " + JSON.stringify(ex && ex.body));
   const gs = JSON.parse(g.w.localStorage.getItem("gb:cloud/session"));
-  assert(gs.access_token === "at2" && gs.refresh_token === "rt2" && gs.uid === "uid-1" && gs.email === "me@gmail.com", "딥링크 토큰 → 세션 + /user 로 이메일 — 실제: " + JSON.stringify(gs));
+  assert(gs.access_token === "at-code-1" && gs.uid === "uid-1" && gs.email === "me@gmail.com", "교환한 토큰으로 세션 — 실제: " + JSON.stringify(gs));
+  assert(!g.w.localStorage.getItem("gb:cloud/pkce"), "검증자는 한 번 쓰고 지움");
   assert(!loginOpen(g), "딥링크로 로그인돼도 로그인 화면이 닫혀야 함");
+  /* 로그인된 상태에서 온 딥링크는 계정을 바꾸지 않는다 */
+  await g.w.__oauth("gamingbudget://login?code=code-9"); await wait(100);
+  assert(JSON.parse(g.w.localStorage.getItem("gb:cloud/session")).access_token === "at-code-1", "로그인 중엔 딥링크로 계정이 바뀌면 안 됨");
 
   /* 로그아웃: 서버에 알리고 세션만 지운다. 기록은 남고, 앱에서는 다시 로그인 화면 */
   g.$("themeBtn").click(); await wait(30);
   const gm = Object.keys(g.w.localStorage).filter((k) => k.startsWith("gb:months/")).length;
   g.$("clLogout").click(); await wait(100);
   assert(!g.w.localStorage.getItem("gb:cloud/session") && loginOpen(g), "로그아웃 → 세션 삭제, 로그인 화면 다시");
-  assert(srv.calls.some((x) => x.url.includes("/auth/v1/logout") && x.headers.Authorization === "Bearer at2"), "서버 logout 호출");
+  assert(srv.calls.some((x) => x.url.includes("/auth/v1/logout") && x.headers.Authorization === "Bearer at-code-1"), "서버 logout 호출");
   assert(Object.keys(g.w.localStorage).filter((k) => k.startsWith("gb:months/")).length === gm, "기록은 그대로");
+  /* 검증자 없이(우리가 시작하지 않은 로그인) 온 code 는 무시 */
+  await g.w.__oauth("gamingbudget://login?code=code-2"); await wait(100);
+  assert(!g.w.localStorage.getItem("gb:cloud/session") && /만료/.test(g.$("toast").textContent), "검증자 없는 code 는 세션을 만들지 않음 — 실제: " + g.$("toast").textContent);
   assert(g.errors.length === 0, "스크립트 오류: " + g.errors.join(" / "));
 
   /* 5) 브라우저 미리보기(브리지 없음): 로그인 화면 없이 쓰고, 메뉴에 Google 행만 */

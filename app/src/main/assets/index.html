@@ -2,6 +2,8 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<!-- CSP (보안 점검 2026-09-29): 혹시 XSS 가 생겨도 데이터가 나갈 곳을 Supabase·Gemini 로 묶는다. 앱은 인라인 스크립트·스타일이라 unsafe-inline 은 허용. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://jxjmrxusumcbfgwzqdrd.supabase.co https://generativelanguage.googleapis.com; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>가계부</title>
 <script>
@@ -733,7 +735,7 @@ const parseN=s=>{const n=parseInt(String(s).replace(/[^0-9]/g,""),10);return isN
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const pad=n=>String(n).padStart(2,"0");
 const todayISO=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());};
-const esc=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+const esc=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 const moneyStr=v=>v?fmt(v)+"원":"";
 function bindMoney(el,apply){
   el.addEventListener("input",()=>{
@@ -962,17 +964,36 @@ window.__googleFail=function(why){
 $("loginGoogle").addEventListener("click",startGoogle);
 /* Google 로그인(브라우저 방식): Supabase 의 authorize 로 보내면 브라우저에서 Google 로그인 뒤 SB_REDIRECT 딥링크로 돌아온다.
    앱에서는 우리 오리진 밖 이동을 네이티브가 브라우저로 넘긴다(§2). 돌아온 URL 은 네이티브가 __oauth(url) 로 준다. */
-function cloudGoogle(){
-  const url=SB_URL+"/auth/v1/authorize?provider=google&redirect_to="+encodeURIComponent(SB_REDIRECT);
+/* PKCE (보안 점검 2026-09-29): 검증자를 만들어 gb:cloud/pkce 에 두고 S256 챌린지를 authorize 에 보낸다. 돌아온 딥링크의
+   ?code= 만 받아 검증자와 함께 교환한다. 예전처럼 #access_token= 을 그대로 받으면 다른 앱이 임의 토큰을 실은 딥링크를
+   쏴서 남의 계정으로 로그인시키고(로그인 CSRF) 기록을 그 계정에 올리게 할 수 있었다. */
+const b64url=buf=>btoa(String.fromCharCode.apply(null,new Uint8Array(buf))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+async function cloudGoogle(){
+  if(cloudOn())return;
+  const raw=new Uint8Array(32);
+  if(window.crypto&&crypto.getRandomValues)crypto.getRandomValues(raw);else for(let i=0;i<raw.length;i++)raw[i]=Math.floor(Math.random()*256);
+  const verifier=b64url(raw.buffer);
+  let challenge=verifier,method="plain";
+  try{if(window.crypto&&crypto.subtle&&window.TextEncoder){challenge=b64url(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(verifier)));method="s256";}}catch(e){}
+  setCloudMeta("pkce",JSON.stringify({v:verifier,at:Date.now()}));
+  const url=SB_URL+"/auth/v1/authorize?provider=google&redirect_to="+encodeURIComponent(SB_REDIRECT)+
+    "&code_challenge="+encodeURIComponent(challenge)+"&code_challenge_method="+method;
   if(hasBridge())location.href=url;else window.open(url,"_blank");
 }
 window.__oauth=async function(url){
-  const q=new URLSearchParams(String(url||"").split("#")[1]||"");
-  if(q.get("error")){toast("Google 로그인 실패: "+(q.get("error_description")||q.get("error")));return;}
-  const at=q.get("access_token"),rt=q.get("refresh_token");if(!at||!rt)return;
-  setCloudSession({access_token:at,refresh_token:rt,expires_at:Math.floor(Date.now()/1000)+(Number(q.get("expires_in"))||3600),uid:"",email:""});
-  try{await ensureUid();}catch(e){}
-  await afterLogin();
+  let u=null;try{u=new URL(String(url||""));}catch(e){return;}
+  const q=u.searchParams;
+  if(q.get("error")||q.get("error_code")){toast("Google 로그인 실패: "+(q.get("error_description")||q.get("error_code")||q.get("error")));return;}
+  const code=q.get("code");if(!code)return;   // 토큰을 조각(#)에 실은 옛 방식은 받지 않는다
+  if(cloudOn())return;                          // 이미 로그인돼 있으면 딥링크로 계정을 바꾸지 않는다
+  let p=null;try{p=JSON.parse(cloudMeta("pkce")||"null");}catch(e){}
+  setCloudMeta("pkce","");
+  if(!p||!p.v||Date.now()-p.at>10*60*1000){toast("로그인 요청이 만료됐습니다. 다시 시도해 주세요");return;}
+  try{
+    const b=await sbFetch("/auth/v1/token?grant_type=pkce",{method:"POST",body:JSON.stringify({auth_code:code,code_verifier:p.v})});
+    setCloudSession(sessionFrom(b,""));
+    loginBusy(false);await afterLogin();
+  }catch(e){loginBusy(false,"로그인 실패: "+e.message);toast("로그인 실패: "+e.message);}
 };
 async function cloudGet(){
   const rows=await sbFetch("/rest/v1/snapshots?select=data,at",{},true); // RLS 가 본인 행만 준다
@@ -1614,7 +1635,7 @@ function syncBudgetFromPlan(){
 function renderPlan(){
   const v=view(),P=cfg.plan;
   const sumPct=()=>P.envelopes.reduce((a,e)=>a+envPct(e),0);
-  const colorOf=(e,i)=>e.color||PAL[i%PAL.length];
+  const colorOf=(e,i)=>PAL.indexOf(e.color)>=0?e.color:PAL[i%PAL.length]; // 백업·서버에서 온 값이라 PAL 밖이면 무시 (HTML 로 들어감)
   v.innerHTML=hdr("실수령액")+
     card('<div class="row"><span class="t">이번 달 실수령액</span><input id="pi" type="text" inputmode="numeric" placeholder="'+(thisMonthIncome()?fmt(thisMonthIncome())+"원":"0")+'" value="'+moneyStr(P.income)+'"></div>')+
     '<p class="note">비워 두면 이번 달(오늘이 속한 달) 수입 기록 합계를 씁니다.</p>'+
@@ -1649,7 +1670,7 @@ function renderPlan(){
   P.envelopes.forEach((e,i)=>{
     if(!e.mode)e.mode="pct";
     const c=document.createElement("div");c.className="card";
-    c.innerHTML='<div class="row"><button class="swbtn" aria-label="색 바꾸기"><span class="swatch" style="background:var('+colorOf(e,i)+')"></span></button>'+
+    c.innerHTML='<div class="row"><button class="swbtn" aria-label="색 바꾸기"><span class="swatch" style="background:var('+esc(colorOf(e,i))+')"></span></button>'+
         '<input class="nm" type="text" value="'+esc(e.name)+'" placeholder="봉투 이름" style="flex:1;text-align:left;border:none;background:transparent">'+
         '<span class="val tnum out"></span></div>'+
       '<div class="colorrow" hidden>'+PAL.map(p=>'<button data-c="'+p+'" class="'+(p===colorOf(e,i)?"on":"")+
@@ -2396,7 +2417,8 @@ function renderChat(){
   if(!gchat.length)h+='<div class="msg ai">'+esc(aiName())+'예요. 이번 달 게임 지출과 한도를 보고 있어요. 과금 계획, 뭐가 고민이에요?</div>';
   gchat.forEach(m=>{
     const pic=m.img&&chatImgs[m.id];
-    const img=pic?'<img src="data:'+pic.mime+';base64,'+pic.data+'" alt="첨부 사진">':(m.img?'<span style="opacity:.8">📷 사진 · </span>':'');
+    const mime=/^image\/[a-z0-9.+-]+$/i.test(pic&&pic.mime||"")?pic.mime:"image/jpeg"; // 파일의 MIME 은 제공자 앱이 정한 문자열 — 형식 밖이면 무시
+    const img=pic?'<img src="data:'+mime+';base64,'+pic.data.replace(/[^A-Za-z0-9+/=]/g,"")+'" alt="첨부 사진">':(m.img?'<span style="opacity:.8">📷 사진 · </span>':'');
     h+='<div class="msg '+(m.role==="user"?"me":"ai")+'">'+img+esc(m.text)+'</div>';
   });
   if(chatBusy)h+='<div class="msg ai" id="chatWait">생각하는 중…</div>';
@@ -2616,7 +2638,7 @@ function renderPick(){
   if(!prods.length)body.insertAdjacentHTML("beforeend",
     card('<p class="empty">등록된 제품이 없습니다.<br>오른쪽 위 새 제품으로 추가하세요.</p>'));
   groups.forEach(gn=>{
-    body.insertAdjacentHTML("beforeend",hdr(gn));
+    body.insertAdjacentHTML("beforeend",hdr(esc(gn))); // 사용자가 적은 카테고리 이름
     const c=document.createElement("div");c.className="card";
     prods.filter(p=>(p.grp||"기타")===gn).forEach(p=>{
       const r=document.createElement("div");r.className="ibrow wrap";

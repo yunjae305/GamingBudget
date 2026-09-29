@@ -32,11 +32,12 @@ jobs:
       # 개인용: 원격 업데이트가 켜진 디버그 APK.
       #   LEDGER_DEBUG_KEYSTORE_B64 = base64 로 인코딩한 debug.keystore (PC 의 ~/.android/debug.keystore).
       #   있으면 그 키로 서명해서 PC·클라우드에서 만든 APK 와 서로 덮어쓰기가 된다. 없으면 실행마다 새 키.
-      #   GEMINI_API_KEY = 앱에 내장할 Gemini 키 (설정에서 입력받지 않으므로 이게 없으면 AI 기능이 안 돈다).
+      #   Gemini 키는 여기 넣지 않는다 (보안 점검 2026-09-29): 공개 저장소의 Actions 아티팩트는 누구나 받을 수 있어서
+      #   키가 든 APK 를 올리면 키가 공개되는 것과 같다. AI 기능이 든 APK 는 PC(.env) 나 클라우드 세션(환경 변수)에서
+      #   직접 빌드한다. 이 아티팩트는 빌드 확인용이고 AI 조언·영수증 스캔이 안 된다.
       - name: Build debug APK
         env:
           LEDGER_DEBUG_KEYSTORE_B64: ${{ secrets.LEDGER_DEBUG_KEYSTORE_B64 }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: gradle assembleDebug --no-daemon
 
       - uses: actions/upload-artifact@v4
@@ -44,6 +45,7 @@ jobs:
           name: ledger-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 3
 
       # 스토어용: 서명 키가 시크릿에 있을 때만. 원격 업데이트 없음.
       #   LEDGER_KEYSTORE_B64  = base64 로 인코딩한 .jks

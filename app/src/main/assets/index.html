@@ -259,18 +259,63 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-ra
 .screennav .ttl{font-size:17px;font-weight:600}
 .screenbody{flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:18px}
 /* 첫 실행 로그인 화면 — 흔한 서비스 로그인 화면 꼴: 위에 앱 표식·이름, 아래에 Google 버튼 */
-#loginScreen{z-index:70;transition:none}
-.loginbody{flex:1;display:flex;flex-direction:column;
+#loginScreen{z-index:70;transition:none;overflow:hidden}
+#loginScreen.bye{animation:loginOut .4s cubic-bezier(.4,0,1,1) forwards}
+@keyframes loginOut{to{opacity:0;transform:scale(1.06)}}
+/* 배경: 천천히 흐르는 빛 덩어리 3개 + 떠오르는 ₩ 입자 */
+.loginbg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.loginbg i{position:absolute;width:70vmax;height:70vmax;border-radius:50%;filter:blur(50px);opacity:.32;will-change:transform}
+:root[data-theme="dark"] .loginbg i{opacity:.5}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .loginbg i{opacity:.5}}
+.loginbg i:nth-child(1){background:radial-gradient(circle,#007AFF 0%,rgba(0,122,255,0) 62%);top:-30vmax;left:-25vmax;animation:blobA 14s ease-in-out infinite}
+.loginbg i:nth-child(2){background:radial-gradient(circle,#5856D6 0%,rgba(88,86,214,0) 62%);bottom:-35vmax;right:-25vmax;animation:blobB 18s ease-in-out infinite}
+.loginbg i:nth-child(3){background:radial-gradient(circle,#34C759 0%,rgba(52,199,89,0) 62%);top:35%;left:20%;width:45vmax;height:45vmax;opacity:.22;animation:blobC 16s ease-in-out infinite}
+@keyframes blobA{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(18vmax,14vmax) scale(1.2)}}
+@keyframes blobB{0%,100%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-16vmax,-18vmax) scale(.9)}}
+@keyframes blobC{0%,100%{transform:translate(0,0)}33%{transform:translate(14vmax,-10vmax)}66%{transform:translate(-10vmax,8vmax)}}
+.loginbg b{position:absolute;bottom:-8%;font-weight:700;color:var(--blue);opacity:0;animation:rise linear infinite;will-change:transform}
+.loginbg b:nth-child(4){left:8%;font-size:22px;animation-duration:11s;animation-delay:0s}
+.loginbg b:nth-child(5){left:22%;font-size:14px;animation-duration:14s;animation-delay:3s}
+.loginbg b:nth-child(6){left:38%;font-size:30px;animation-duration:17s;animation-delay:6s}
+.loginbg b:nth-child(7){left:55%;font-size:16px;animation-duration:12s;animation-delay:1.5s}
+.loginbg b:nth-child(8){left:70%;font-size:26px;animation-duration:15s;animation-delay:8s}
+.loginbg b:nth-child(9){left:84%;font-size:18px;animation-duration:13s;animation-delay:4.5s}
+.loginbg b:nth-child(10){left:92%;font-size:12px;animation-duration:19s;animation-delay:10s}
+@keyframes rise{0%{transform:translateY(0) rotate(0deg);opacity:0}10%{opacity:.28}90%{opacity:.12}100%{transform:translateY(-115vh) rotate(40deg);opacity:0}}
+.loginbody{flex:1;display:flex;flex-direction:column;position:relative;
   padding:calc(var(--sat) / var(--zoom, 1) + 24px) 24px calc(var(--sab) / var(--zoom, 1) + 28px)}
 .loginbrand{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center}
-.loginmark{width:72px;height:72px;border-radius:18px;background:var(--blue);color:#fff;font-size:34px;font-weight:700;
-  display:flex;align-items:center;justify-content:center;margin-bottom:4px}
-.logintitle{font-size:26px;font-weight:700;margin:0;letter-spacing:-.3px}
-.loginmsg{font-size:15px;color:var(--label2);line-height:1.5;margin:0}
-.loginactions{display:flex;flex-direction:column;align-items:stretch;gap:6px;max-width:400px;width:100%;margin:0 auto}
+/* 앱 표식: 튀어 들어온 뒤 둥실거리고, 뒤로 링이 맥동한다 */
+.markwrap{position:relative;margin-bottom:4px;animation:markFloat 5s ease-in-out 1s infinite}
+.markwrap::before,.markwrap::after{content:"";position:absolute;inset:0;border-radius:18px;border:2px solid var(--blue);opacity:0;animation:ring 2.6s ease-out .9s infinite}
+.markwrap::after{animation-delay:2.2s}
+@keyframes ring{0%{transform:scale(1);opacity:.55}100%{transform:scale(1.9);opacity:0}}
+@keyframes markFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.loginmark{width:72px;height:72px;border-radius:18px;background:linear-gradient(145deg,#3395ff,var(--blue) 60%,#0a5fd6);color:#fff;font-size:34px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 12px 30px rgba(0,122,255,.35);position:relative;
+  animation:markIn .9s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes markIn{0%{transform:scale(.3) rotate(-25deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+.logintitle{font-size:26px;font-weight:700;margin:0;letter-spacing:-.3px;animation:fadeUp .7s .3s cubic-bezier(.2,.8,.2,1) both}
+.loginmsg{font-size:15px;color:var(--label2);line-height:1.5;margin:0;animation:fadeUp .7s .45s cubic-bezier(.2,.8,.2,1) both}
+.loginactions{display:flex;flex-direction:column;align-items:stretch;gap:6px;max-width:400px;width:100%;margin:0 auto;animation:fadeUp .8s .6s cubic-bezier(.2,.8,.2,1) both}
+@keyframes fadeUp{0%{opacity:0;transform:translateY(22px)}100%{opacity:1;transform:translateY(0)}}
 .gbtn{height:50px;border-radius:12px;border:1px solid #dadce0;background:#fff;color:#1f1f1f;font-size:16px;font-weight:600;
-  display:flex;align-items:center;justify-content:center;gap:10px}
-.gbtn:disabled{opacity:.6}
+  display:flex;align-items:center;justify-content:center;gap:10px;position:relative;overflow:hidden;
+  transition:transform .15s ease,box-shadow .15s ease;box-shadow:0 6px 18px rgba(0,0,0,.08)}
+.gbtn:active{transform:scale(.97);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+/* 버튼 위를 훑고 지나가는 빛 */
+.gbtn::after{content:"";position:absolute;top:0;left:-70%;width:45%;height:100%;pointer-events:none;
+  background:linear-gradient(115deg,rgba(255,255,255,0),rgba(0,122,255,.18),rgba(255,255,255,0));transform:skewX(-20deg);
+  animation:shine 3.4s ease-in-out 1.8s infinite}
+@keyframes shine{0%{left:-70%}35%,100%{left:130%}}
+.gbtn:disabled{opacity:.75}
+.gbtn.busy svg{animation:spin 1s linear infinite}
+.gbtn.busy::after{animation:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){
+  .loginbg i,.loginbg b,.markwrap,.markwrap::before,.markwrap::after,.loginmark,.logintitle,.loginmsg,.loginactions,.gbtn::after,#loginScreen.bye{animation:none!important;opacity:1}
+  .loginbg b{display:none}
+}
 :root[data-theme="dark"] .gbtn{background:#131314;border-color:#8e918f;color:#e3e3e3}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .gbtn{background:#131314;border-color:#8e918f;color:#e3e3e3}}
 #loginNote{min-height:18px;padding:0;text-align:center;font-size:13px}
@@ -559,9 +604,10 @@ textarea{width:100%;border:none;background:transparent;resize:vertical;padding:1
 </div>
 
 <div class="screen" id="loginScreen" role="dialog" aria-label="로그인">
+  <div class="loginbg" aria-hidden="true"><i></i><i></i><i></i><b>₩</b><b>₩</b><b>₩</b><b>₩</b><b>₩</b><b>₩</b><b>₩</b></div>
   <div class="loginbody">
     <div class="loginbrand">
-      <div class="loginmark" aria-hidden="true">₩</div>
+      <div class="markwrap"><div class="loginmark" aria-hidden="true">₩</div></div>
       <h1 class="logintitle">가계부</h1>
       <p class="loginmsg">결제 알림으로 자동 기록하는 나만의 가계부</p>
     </div>
@@ -894,9 +940,17 @@ async function ensureUid(){
    grant_type=id_token 으로 로그인한다. 네이티브가 못 띄우면(옛 APK·클라이언트 ID 없음·Play 서비스 없음)
    브라우저 방식(cloudGoogle → 딥링크 __oauth)으로 간다. 브라우저 미리보기(브리지 없음)에서는 이 화면을 띄우지 않는다. */
 const needLogin=()=>hasBridge()&&!cloudOn();
-function showLogin(on){const s=$("loginScreen");if(s)s.classList.toggle("open",!!on);}
+let loginByeT=null;
+function showLogin(on){
+  const s=$("loginScreen");if(!s)return;
+  if(on){clearTimeout(loginByeT);s.classList.remove("bye");s.classList.add("open");return;}
+  if(!s.classList.contains("open")||s.classList.contains("bye"))return;
+  /* 로그인 성공: 확대되며 사라진 뒤 닫는다 */
+  s.classList.add("bye");
+  clearTimeout(loginByeT);loginByeT=setTimeout(()=>{s.classList.remove("open");s.classList.remove("bye");},420);
+}
 function loginBusy(b,msg){
-  const btn=$("loginGoogle");btn.disabled=!!b;
+  const btn=$("loginGoogle");btn.disabled=!!b;btn.classList.toggle("busy",!!b);
   btn.lastChild.textContent=b?"로그인 중…":"Google로 계속하기";
   $("loginNote").textContent=msg||"";
 }

@@ -44,7 +44,7 @@ function app(extra) {
 module.exports = async function () {
   const srv = makeServer();
   const addTx = async (s, amt, memo) => { s.$("add").click(); await wait(30); s.$("fAmt").value = String(amt); s.$("fMemo").value = memo || ""; s.$("fSave").click(); await wait(30); };
-  const loginOpen = (s) => s.$("loginScreen").classList.contains("open");
+  const loginOpen = (s) => { const c = s.$("loginScreen").classList; return c.contains("open") && !c.contains("bye"); }; // bye = 사라지는 애니메이션 중
 
   /* 1) 첫 실행: 로그인 화면이 덮고 있다 → Google 버튼 → 취소 → 다시 → 토큰 → 로그인. 서버가 비었으니 폰 기록을 올린다 */
   const A = app(), a = A.b;

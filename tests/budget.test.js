@@ -75,11 +75,29 @@ module.exports = async function () {
   assert(!$("bcIncome"), "예산 탭의 예산 계산 카드는 없어야 함");
   const allow2 = Math.floor((600000 - before) / left);
   assert($("todayCard").textContent.includes(new Intl.NumberFormat("ko-KR").format(allow2) + "원"), "오늘 카드가 새 예산으로 다시 계산 — 실제: " + $("todayCard").textContent);
-  /* 저축 목표는 자산 탭에 */
-  d.querySelector('[data-tab="asset"]').click(); await wait(20);
-  assert($("gt") && $("gl"), "자산 탭에 저축 목표가 있어야 함");
+  /* 목표 탭: 목표 금액·기한 → 남은 돈·매달 필요 저축, AI 조언(쓴소리 허용). 자산 항목·원그래프는 없다 (2026-09-29) */
+  d.querySelector('[data-tab="goal"]').click(); await wait(20);
+  assert(!d.querySelector('[data-tab="asset"]'), "자산 탭은 없어야 함");
+  assert($("summaryCard").style.display === "none", "목표 탭에는 상단 카드가 없어야 함");
+  assert($("gt") && $("gd") && $("goalCard") && !$("adonut") && !$("aadd"), "목표 탭: 금액·기한 입력, 자산 항목·원그래프 없음");
   type("gt", "3000000"); await wait(10);
-  assert(/남음/.test($("gl").textContent), "목표를 넣으면 남은 금액이 보여야 함 — 실제: " + $("gl").textContent);
+  assert(/남은 돈/.test($("goalCard").textContent) && /언제까지/.test($("goalCard").textContent), "기한이 없으면 정하라는 안내 — 실제: " + $("goalCard").textContent);
+  const due = new Date(now.getFullYear(), now.getMonth() + 5, 1); // 이번 달 포함 6개월
+  $("gd").value = due.getFullYear() + "-" + pad(due.getMonth() + 1); $("gd").dispatchEvent(new w.Event("change")); await wait(20);
+  const gc = $("goalCard").textContent;
+  assert(/6개월/.test(gc) && gc.includes(new Intl.NumberFormat("ko-KR").format(500000) + "원"), "6개월 남음 → 매달 500,000원 — 실제: " + gc);
+  assert(/부족/.test(gc), "이번 달 저축이 0 이면 부족 표시");
+  let goalCall = null;
+  w.fetch = async (url, opts) => { goalCall = { url, body: JSON.parse(opts.body) }; return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ verdict: "이 흐름이면 못 모읍니다.", monthly: 520000, advice: "카페부터 줄이세요." }) }] } }] }) }; };
+  assert($("goalGoBtn"), "조언 받기 버튼");
+  $("goalGoBtn").click(); await wait(80);
+  const gsys = goalCall.body.systemInstruction.parts[0].text, gusr = goalCall.body.contents[0].parts[0].text;
+  assert(/쓴소리/.test(gsys), "쓴소리를 허용하는 지시가 있어야 함");
+  assert(/3,000,000원/.test(gusr) && /매달 필요 500,000원/.test(gusr) && !/스타벅스/.test(gusr), "목표·필요 저축액은 보내고 가게 이름은 안 보냄 — 실제: " + gusr);
+  const gb2 = $("goalBubble").textContent;
+  assert(/못 모읍니다/.test(gb2) && /520,000원/.test(gb2) && /카페부터/.test(gb2), "판정·권고 금액·조언 표시 — 실제: " + gb2);
+  goalCall = null; type("gt", "4000000"); await wait(30);
+  assert($("goalGoBtn") && goalCall === null, "목표를 바꾸면 캐시를 버리고 다시 받게 함(자동 호출은 없음)");
 
   /* 상단 카드 누르면 예산 탭 */
   d.querySelector('[data-tab="tx"]').click(); await wait(20);
@@ -95,20 +113,6 @@ module.exports = async function () {
   assert($("summaryCard").style.display === "none", "배분 탭에는 상단 카드가 없어야 함");
   d.querySelector('[data-tab="budget"]').click(); await wait(20);
   assert($("summaryCard").style.display === "none", "예산 탭에는 상단 카드(오늘·수입/지출/저축)가 없어야 함");
-  /* 자산 탭: 상단 카드 대신 항목별 비율 원그래프 */
-  d.querySelector('[data-tab="asset"]').click(); await wait(20);
-  assert($("summaryCard").style.display === "none", "자산 탭에는 상단 카드가 없어야 함");
-  assert(/등록하면/.test($("adonut").textContent), "항목이 없으면 안내");
-  $("aadd").click(); await wait(20); $("aadd").click(); await wait(20);
-  const cards = d.querySelectorAll("#alist .card");
-  cards[0].querySelector(".nm").value = "주거래 통장"; cards[0].querySelector(".nm").dispatchEvent(new w.Event("input"));
-  cards[0].querySelector(".am").value = "3000000"; cards[0].querySelector(".am").dispatchEvent(new w.Event("input"));
-  cards[1].querySelector(".nm").value = "적금"; cards[1].querySelector(".nm").dispatchEvent(new w.Event("input"));
-  cards[1].querySelector(".am").value = "1000000"; cards[1].querySelector(".am").dispatchEvent(new w.Event("input"));
-  await wait(20);
-  assert($("adonut").querySelector("svg"), "자산 원그래프가 있어야 함");
-  assert(/주거래 통장.*75\.0%/.test($("adonut").textContent.replace(/\s+/g, " ")), "비율 75% — 실제: " + $("adonut").textContent);
-  assert(/4,000,000/.test($("adonut").textContent), "가운데는 순자산 합계");
   d.querySelector('[data-tab="tx"]').click(); await wait(20);
   assert($("todayRow").style.display !== "none", "내역 탭에는 오늘 카드가 보여야 함");
 

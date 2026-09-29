@@ -23,10 +23,11 @@
 2. 초록 체크가 뜨면 그 실행을 클릭 → 맨 아래 **Artifacts** 의 `ledger-apk` 를 받습니다.
 3. 압축을 풀면 `app-debug.apk` 가 나옵니다.
 
-**Actions 의 APK 에는 Gemini 키가 들어 있지 않습니다** (2026-09-29 보안 점검). 공개 저장소의 아티팩트는 누구나 받을 수 있어서, 키가 든 APK 를 올리면 키가 공개되는 셈이라 뺐습니다. 그 APK 는 설치·알림 감지·클라우드 동기화는 다 되지만 AI 조언·영수증 스캔·과금 상담은 "키 없음" 안내만 뜹니다. AI 까지 되는 APK 는 다음 중 하나로 만듭니다.
+**push 로 만들어진 APK 에는 Gemini 키가 들어 있지 않습니다** (2026-09-29 보안 점검). 공개 저장소의 아티팩트는 누구나 받을 수 있어서, 키가 든 APK 를 그대로 올리면 키가 공개되는 셈이라 뺐습니다. 그 APK 는 설치·알림 감지·클라우드 동기화는 다 되지만 AI 조언·영수증 스캔·과금 상담은 "키 없음" 안내만 뜹니다. AI 까지 되는 APK 는 다음 중 하나로 만듭니다.
 
+- **Actions 에서 암호화해 받기**: Actions › Build APK › **Run workflow** 에서 `ai` 를 켜고 실행 → 아티팩트에 `app-debug.apk.enc` 가 올라옵니다(APK 를 Gemini 키를 비밀번호로 암호화한 것). PC 에서 `openssl enc -d -aes-256-cbc -pbkdf2 -in app-debug.apk.enc -out app-debug.apk` 를 치고 비밀번호에 Gemini 키를 넣으면 풀립니다. Claude 세션에 부탁하면 받아서 풀어 파일로 건네줍니다.
 - **PC**: 프로젝트 루트에 `.env` 파일(`GEMINI_API_KEY=…`)을 두고 안드로이드 스튜디오 **Build → Build APK(s)** 또는 Git Bash 에서 gradle.
-- **Claude 클라우드 세션**: 환경 설정의 환경 변수에 `GEMINI_API_KEY` 와 `LEDGER_DEBUG_KEYSTORE_B64` 를 넣어 두면 세션 안에서 빌드해 파일로 건네줍니다. 아티팩트로 안 올라가니 밖으로 안 나갑니다.
+- **Claude 클라우드 세션**: 환경 설정의 환경 변수에 `GEMINI_API_KEY` 와 `LEDGER_DEBUG_KEYSTORE_B64` 를 넣어 두면 세션 안에서 바로 빌드합니다.
 
 키를 만든 뒤에는 Google Cloud 콘솔에서 그 API 키를 **Generative Language API 로만** 제한해 두세요.
 

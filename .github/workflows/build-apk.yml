@@ -3,6 +3,11 @@ name: Build APK
 on:
   push:
   workflow_dispatch:
+    inputs:
+      ai:
+        description: 'Gemini 키를 넣은 APK 를 만들고, 그 키를 비밀번호로 암호화해서 올린다 (app-debug.apk.enc)'
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -32,18 +37,28 @@ jobs:
       # 개인용: 원격 업데이트가 켜진 디버그 APK.
       #   LEDGER_DEBUG_KEYSTORE_B64 = base64 로 인코딩한 debug.keystore (PC 의 ~/.android/debug.keystore).
       #   있으면 그 키로 서명해서 PC·클라우드에서 만든 APK 와 서로 덮어쓰기가 된다. 없으면 실행마다 새 키.
-      #   Gemini 키는 여기 넣지 않는다 (보안 점검 2026-09-29): 공개 저장소의 Actions 아티팩트는 누구나 받을 수 있어서
-      #   키가 든 APK 를 올리면 키가 공개되는 것과 같다. AI 기능이 든 APK 는 PC(.env) 나 클라우드 세션(환경 변수)에서
-      #   직접 빌드한다. 이 아티팩트는 빌드 확인용이고 AI 조언·영수증 스캔이 안 된다.
+      #   Gemini 키 (보안 점검 2026-09-29): 공개 저장소의 Actions 아티팩트는 누구나 받을 수 있어서 키가 든 APK 를
+      #   그대로 올리면 키가 공개되는 것과 같다. 그래서 push 빌드는 키 없이(AI 기능 꺼짐) 올리고,
+      #   "Run workflow" 에서 ai 를 켠 경우에만 키를 넣어 빌드한 뒤 그 키를 비밀번호로 암호화(app-debug.apk.enc)해 올린다.
+      #   풀기: openssl enc -d -aes-256-cbc -pbkdf2 -in app-debug.apk.enc -out app-debug.apk  (비밀번호 = Gemini 키)
       - name: Build debug APK
         env:
           LEDGER_DEBUG_KEYSTORE_B64: ${{ secrets.LEDGER_DEBUG_KEYSTORE_B64 }}
-        run: gradle assembleDebug --no-daemon
+          GEMINI_API_KEY: ${{ inputs.ai && secrets.GEMINI_API_KEY || '' }}
+        run: |
+          gradle assembleDebug --no-daemon
+          if [ -n "$GEMINI_API_KEY" ]; then
+            openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:GEMINI_API_KEY \
+              -in app/build/outputs/apk/debug/app-debug.apk -out app/build/outputs/apk/debug/app-debug.apk.enc
+            rm app/build/outputs/apk/debug/app-debug.apk
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: ledger-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk.enc
           if-no-files-found: error
           retention-days: 3
 

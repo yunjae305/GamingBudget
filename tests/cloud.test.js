@@ -123,6 +123,8 @@ module.exports = async function () {
   await wait(300);
   g.$("loginGoogle").click(); await wait(20);
   assert(/브라우저/.test(g.$("loginNote").textContent) && !g.$("loginGoogle").disabled, "계정 선택창을 못 띄우면 브라우저 안내 — 실제: " + g.$("loginNote").textContent);
+  g.$("loginBrowser").click(); await wait(20);
+  assert(/브라우저에서 로그인한 뒤/.test(g.$("loginNote").textContent), "로그인 화면의 '브라우저로 로그인' 버튼 — 실제: " + g.$("loginNote").textContent);
   await g.w.__oauth("gamingbudget://login#error=access_denied&error_description=cancelled"); await wait(50);
   assert(/로그인 실패/.test(g.$("toast").textContent) && loginOpen(g), "오류 딥링크는 안내만, 로그인 화면 유지");
   await g.w.__oauth("gamingbudget://login#access_token=at2&expires_in=3600&refresh_token=rt2&token_type=bearer&type=signup"); await wait(200);

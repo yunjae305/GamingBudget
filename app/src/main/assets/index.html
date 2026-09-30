@@ -760,10 +760,11 @@ function toast(msg){
 }
 /* 저장은 400ms 디바운스라 그 사이 load 하면 옛 값을 읽는다. 아직 안 쓴 값(pend)을 먼저 돌려준다 */
 const pend={};
-async function load(path){
+function peek(path){
   if(path in pend)return JSON.parse(JSON.stringify(pend[path]));
   try{const v=localStorage.getItem("gb:"+path);return v?JSON.parse(v):null;}catch(e){return null;}
 }
+async function load(path){return peek(path);}
 function save(path,obj){
   clearTimeout(timers[path]);
   pend[path]=obj;
@@ -2277,8 +2278,16 @@ function renderGame(){
   const G=cfg.gameGuard||(cfg.gameGuard={month:0,daily:0,perGame:{}});
   const byGame={};games.forEach(g=>{(byGame[g.game||"이름 없음"]=byGame[g.game||"이름 없음"]||[]).push(g);});
   const roster=Array.isArray(cfg.gameNames)?cfg.gameNames:[];
-  const names=Array.from(new Set([...roster,...Object.keys(byGame)]))
-    .sort((a,b)=>gTotal(byGame[b]||[])-gTotal(byGame[a]||[]));
+  /* 게임별 목록 금액은 지금까지 총액(모든 달, 사용자 요청 2026-09-30). 이번 달 금액은 한도 막대에만 */
+  const allBy={},allCnt={};
+  Array.from(new Set([...Object.keys(gsum),ym])).forEach(k=>{
+    (k===ym?games:(((peek("game/"+k))||{}).items||[])).forEach(g=>{
+      const n=g.game||"이름 없음";allBy[n]=(allBy[n]||0)+gAmt(g);allCnt[n]=(allCnt[n]||0)+1;
+    });
+  });
+  const allSum=Object.values(allBy).reduce((a,b)=>a+b,0);
+  const names=Array.from(new Set([...roster,...Object.keys(byGame),...Object.keys(allBy)]))
+    .sort((a,b)=>(allBy[b]||0)-(allBy[a]||0));
   const pct=G.month?total/G.month*100:0;
   const st=!G.month?["한도 미설정","--label2"]:pct>=100?["위험","--red"]:pct>=80?["주의","--orange"]:["안정","--green"];
 
@@ -2353,20 +2362,20 @@ function renderGame(){
   /* 게임별 */
   const host=$("glist");
   names.forEach((nm,i)=>{
-    const list=byGame[nm]||[],sum=gTotal(list),col="var("+PAL[i%PAL.length]+")";
+    const sum=gTotal(byGame[nm]||[]),all=allBy[nm]||0,cnt=allCnt[nm]||0,col="var("+PAL[i%PAL.length]+")";
     const lim=G.perGame[nm]||0;
-    const ratio=lim?Math.min(100,sum/lim*100):(total?sum/total*100:0);
+    const ratio=lim?Math.min(100,sum/lim*100):(allSum?all/allSum*100:0);
     const bcol=lim?(sum>=lim?"var(--red)":sum/lim>=.8?"var(--orange)":"var(--green)"):col;
     const c=document.createElement("div");c.className="card";
     c.innerHTML='<button class="row tap"><span class="swatch" style="background:'+col+'"></span>'+
-        '<span class="t">'+esc(nm)+(list.length?'<span class="sub"> · '+list.length+'건</span>':'')+'</span>'+
-        '<span class="val tnum" style="'+(sum?"color:var(--label);font-weight:600":"")+'">'+fmt(sum)+'원</span>'+
+        '<span class="t">'+esc(nm)+(cnt?'<span class="sub"> · '+cnt+'건</span>':'')+'</span>'+
+        '<span class="val tnum gAllOf" style="'+(all?"color:var(--label);font-weight:600":"")+'">'+fmt(all)+'원</span>'+
         '<span class="chev">›</span></button>'+
       '<div style="padding:0 16px 12px">'+
         '<div class="track" style="margin:0 0 5px"><i style="width:'+ratio+'%;background:'+bcol+'"></i></div>'+
         '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--label2)" class="tnum">'+
-        '<span>'+(lim?"한도 "+fmt(lim)+"원":"한도 없음")+'</span>'+
-        '<span>'+(lim?Math.round(sum/lim*100)+"%":(total&&sum?"전체의 "+Math.round(sum/total*100)+"%":""))+'</span></div>'+
+        '<span>'+(lim?"이번 달 "+fmt(sum)+"원 · 한도 "+fmt(lim)+"원":"이번 달 "+fmt(sum)+"원")+'</span>'+
+        '<span>'+(lim?Math.round(sum/lim*100)+"%":(allSum&&all?"전체의 "+Math.round(all/allSum*100)+"%":""))+'</span></div>'+
       '</div>';
     c.querySelector(".row").addEventListener("click",()=>openDetail(nm));
     host.appendChild(c);

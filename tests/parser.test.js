@@ -29,6 +29,10 @@ const CASES = [
   { pkg: "com.samsung.android.spay", text: "₩151,600 결제 완료\n고메스퀘어 발산점", want: { name: "고메스퀘어 발산점", amt: 151600 } },
   { pkg: "viva.republica.toss", text: "454원 캐시백 🎉\n151,600원 결제 | 고메스퀘어 발산점\n잔액 0원(토스뱅크 체크카드)", want: { name: "고메스퀘어 발산점", amt: 151600 } },
   { pkg: "com.samsung.android.messaging", text: "[Web발신]\n[현대카드] 승인 12,000원 일시불 09/22 14:03 스타벅스 M포인트 120P 적립예정", want: { name: "스타벅스", amt: 12000 } },
+  /* 적금·투자로 옮긴 돈은 저축으로 (2026-09-30 사용자 요청) — 저축은행 이름·카드 결제는 저축 아님 */
+  { pkg: "viva.republica.toss", text: "토스뱅크\n출금 300,000원\n굴비적금\n잔액 1,020,000원", want: { name: "굴비적금", amt: 300000, type: "saving", cat: "적금" } },
+  { pkg: "com.kakaobank.channel", text: "카카오뱅크\n출금 250,000원\n토스증권\n잔액 770,000원", want: { name: "토스증권", amt: 250000, type: "saving", cat: "투자" } },
+  { pkg: "com.samsung.android.messaging", text: "[Web발신]\n[OK저축은행] 출금 5,000원 GS25 역삼점 잔액 90,000원", want: { amt: 5000 } },
   { pkg: "com.samsung.android.messaging", text: "[Web발신]\n[대신저축은행] 입금 250,000원 김*재 430502-**-****** 잔액 1,250,000원", want: { name: "대신저축은행 김*재", amt: 250000, type: "income" } },
 ];
 
@@ -43,6 +47,8 @@ module.exports = async function () {
     name: r.querySelector(".body b").textContent,
     amt: r.querySelector(".amt").textContent,
     income: r.querySelector(".amt").textContent.startsWith("+"),
+    type: r.querySelector(".tchip").textContent,
+    cat: r.querySelector(".body span").textContent,
   }));
   const expectN = CASES.filter((c) => c.want).length;
   assert(rows.length === expectN, "대기열 " + expectN + "건이어야 함 — 실제 " + rows.length + ": " + rows.map((r) => r.name).join(" | "));
@@ -55,6 +61,41 @@ module.exports = async function () {
     if (c.want.name) assert(r.name === c.want.name, label + " → 가맹점 '" + c.want.name + "' 기대, 실제 '" + r.name + "'");
     assert(r.amt.replace(/[^0-9]/g, "") === String(c.want.amt), label + " → 금액 " + c.want.amt + " 기대, 실제 " + r.amt);
     assert(r.income === (c.want.type === "income"), label + " → 수입/지출 구분 틀림");
+    const tl = { income: "수입", saving: "저축" }[c.want.type] || "지출";
+    assert(r.type === tl, label + " → 종류 '" + tl + "' 기대, 실제 '" + r.type + "'");
+    if (c.want.cat) assert(r.cat === c.want.cat, label + " → 카테고리 '" + c.want.cat + "' 기대, 실제 '" + r.cat + "'");
   }
+  /* 대기열 종류 칩: 누를 때마다 지출 → 저축 → 수입 → 지출, 카테고리도 따라 바뀜. 일괄 저장하면 그 종류로 */
+  const chipRow = () => [...d.querySelectorAll("#ibList .ibrow")].find((r) => r.querySelector(".body b").textContent === "카카오T 택시");
+  chipRow().querySelector(".tchip").click(); await wait(20);
+  assert(chipRow().querySelector(".tchip").textContent === "저축" && chipRow().querySelector(".body span").textContent === "적금", "칩 한 번 → 저축·적금");
+  chipRow().querySelector(".tchip").click(); await wait(20);
+  assert(chipRow().querySelector(".tchip").textContent === "수입" && chipRow().querySelector(".amt").textContent.startsWith("+"), "두 번 → 수입");
+  chipRow().querySelector(".tchip").click(); await wait(20);
+  assert(chipRow().querySelector(".tchip").textContent === "지출", "세 번 → 지출");
   assert(errors.length === 0, "스크립트 오류: " + errors.join(" / "));
+
+  /* 배분 탭에서 "저축으로 계산" 을 켠 봉투 이름이 알림에 있으면 저축 (괄호 속 말은 안 봄) */
+  let feed = [];
+  const b = boot({ android: { takePending: () => { const x = feed; feed = []; return JSON.stringify(x); }, hasNotifAccess: () => true, setBars: () => {} } });
+  await wait(500);
+  b.d.querySelector('[data-tab="plan"]').click(); await wait(50);
+  const env = [...b.d.querySelectorAll("#envs .card")].find((c) => c.querySelector(".nm").value === "저축·투자");
+  env.querySelector(".nm").value = "모임통장(토스)"; env.querySelector(".nm").dispatchEvent(new b.w.Event("input")); await wait(30);
+  feed = [
+    { pkg: "com.kakaobank.channel", text: "카카오뱅크\n출금 100,000원\n모임통장\n잔액 500,000원", time: t },
+    { pkg: "viva.republica.toss", text: "토스\n스타벅스 역삼점에서 5,600원 결제했어요", time: t + 1 },
+  ];
+  b.w.__pullPending(); await wait(100);
+  b.$("qfab").click(); await wait(100);
+  const rs = [...b.d.querySelectorAll("#ibList .ibrow")];
+  const mo = rs.find((r) => r.querySelector(".body b").textContent === "모임통장");
+  const sb = rs.find((r) => r.querySelector(".body b").textContent === "스타벅스 역삼점");
+  assert(mo && mo.querySelector(".tchip").textContent === "저축", "저축 봉투 이름이 있는 이체는 저축 — 실제: " + rs.map((r) => r.textContent).join(" | "));
+  assert(sb && sb.querySelector(".tchip").textContent === "지출", "괄호 속 '토스' 는 안 봐서 토스 결제는 지출");
+  /* 일괄 저장하면 저축으로 기록되어 상단 저축 카드에 잡힌다 */
+  b.$("ibSave").click(); await wait(600);
+  b.d.querySelector('[data-tab="tx"]').click(); await wait(50);
+  assert(/100,000/.test(b.d.querySelector(".sum3, #top, body").textContent), "저축 100,000 이 화면에 잡혀야 함");
+  assert(b.errors.length === 0, "스크립트 오류: " + b.errors.join(" / "));
 };

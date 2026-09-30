@@ -79,6 +79,8 @@ module.exports = async function () {
   assert($("gAllTotal").textContent === "17,600원", "게임 탭 지금까지 총액 = 12,600 + 5,000 — 실제: " + $("gAllTotal").textContent);
   assert($("gMonthTotal").textContent === "12,600원", "게임 탭 이번 달 금액 — 실제: " + $("gMonthTotal").textContent);
   assert(!/지난달 대비/.test(d.body.textContent), "지난달 대비 % 지표는 없어야 함");
+  const mzRow = [...d.querySelectorAll("#glist .card")].find((c) => c.textContent.includes("명조"));
+  assert(mzRow.querySelector(".gAllOf").textContent === "17,600원" && /3건/.test(mzRow.textContent) && /이번 달 12,600원/.test(mzRow.textContent), "게임별 목록은 지금까지 총액·건수, 이번 달은 아래 줄 — 실제: " + mzRow.textContent);
   await openGame("명조");
   assert($("gdAll").textContent === "17,600원", "상세 총액은 모든 달 — 실제: " + $("gdAll").textContent);
   assert($("gdNext").disabled, "이번 달에서 다음 달로는 못 감");

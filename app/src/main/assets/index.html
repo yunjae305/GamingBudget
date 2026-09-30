@@ -2071,8 +2071,35 @@ function parseOne(raw){
       .replace(/\(주\)/g," ").replace(/\s+/g," ").trim().slice(0,24));
   }
   const income=/입금|급여|월급|이자/.test(raw)&&!/출금|승인|결제/.test(raw);
+  if(!income){
+    /* 적금·투자 이체는 저축으로 (사용자 요청 2026-09-30): 문구의 저축 단어, 또는 배분 탭에서
+       "저축으로 계산" 을 켠 봉투 이름이 알림에 있으면. 카드 결제(승인·결제)는 저축으로 보지 않는다 */
+    const sv=savingHit(merchant+" "+raw);
+    if(sv&&!/승인|카드|결제/.test(raw))return {id:uid(),amount,d,merchant,type:"saving",cat:sv};
+  }
   return {id:uid(),amount,d,merchant,type:income?"income":"expense",
     cat:income?(/이자/.test(raw)?"부수입":"급여"):guessCat(merchant+" "+raw)};
+}
+/* 저축 단어·저축 봉투 이름이 있으면 저축 카테고리를, 없으면 null */
+const SAVEWORD=/적금|정기예금|예금|투자|증권|청약|저축|비상금|굴비|CMA|ISA/i;
+function savingCat(t){
+  t=String(t||"");
+  if(/투자|증권|ISA/i.test(t))return "투자";
+  if(/비상금/.test(t))return "비상금";
+  if(/정기예금|(^|[^입])예금/.test(t)&&!/적금/.test(t))return "정기예금";
+  return "적금";
+}
+function savingHit(t){
+  t=String(t||"");
+  const envs=((cfg.plan&&cfg.plan.envelopes)||[]).filter(e=>e.saving);
+  for(const e of envs){
+    /* "굴비적금(토스)" → "굴비적금" 만 본다. 괄호 속 "토스" 같은 말은 너무 흔해서 쓰지 않는다 */
+    const nm=String(e.name||"").replace(/\([^)]*\)/g,"").trim();
+    if(nm.length>=2&&t.indexOf(nm)>=0)return savingCat(nm);
+  }
+  /* "OK저축은행"·"예금주" 같은 이름·용어는 저축 단어로 보지 않는다 */
+  const u=t.replace(/저축은행|예금주|입금/g,"");
+  return SAVEWORD.test(u)?savingCat(u):null;
 }
 /* 가맹점 문자열에서 결제 용어·꼬리말을 걷어낸다 */
 function cleanMerchant(m){
@@ -2102,6 +2129,7 @@ function updateIbCounts(){
   $("ibSave").disabled=!n;
   $("ibDel").style.visibility=n?"visible":"hidden";
 }
+const TYPE_LBL={expense:"지출",income:"수입",saving:"저축"};
 function renderInbox(){
   const host=$("ibList");host.innerHTML="";
   if(!inbox.length){host.innerHTML='<div class="card" style="margin-top:16px"><p class="empty">대기 중인 결제가 없습니다.</p></div>';updateIbCounts();return;}
@@ -2121,10 +2149,19 @@ function renderInbox(){
     const c=document.createElement("div");c.className="card";
     items.forEach(it=>{
       const r=document.createElement("div");r.className="ibrow";
-      const col=it.type==="income"?"var(--blue)":"var(--label)",sign=it.type==="income"?"+":"−";
+      const col=it.type==="income"?"var(--blue)":it.type==="saving"?"var(--green)":"var(--label)",
+        sign=it.type==="income"?"+":it.type==="saving"?"":"−";
       r.innerHTML='<button class="check'+(it.sel!==false?" on":"")+'" aria-label="선택">'+CHECK+'</button>'+
         '<button class="body"><b>'+esc(it.merchant||"이름 없음")+'</b><span>'+esc(it.cat)+'</span></button>'+
+        '<button class="pill tchip" aria-label="종류 바꾸기" style="flex:none;align-self:center;margin-right:8px;color:'+col+'">'+TYPE_LBL[it.type]+'</button>'+
         '<span class="amt" style="color:'+col+'">'+sign+fmt(it.amount)+'원</span><span class="chev">›</span>';
+      /* 종류 칩: 누를 때마다 지출 → 저축 → 수입 → 지출. 카테고리도 그 종류에 맞게 다시 고른다 */
+      r.querySelector(".tchip").addEventListener("click",()=>{
+        const nx={expense:"saving",saving:"income",income:"expense"}[it.type]||"expense";
+        it.type=nx;
+        it.cat=nx==="saving"?savingCat(it.merchant):nx==="income"?"기타":guessCat(it.merchant||"");
+        saveInbox();renderInbox();
+      });
       const chk=r.querySelector(".check"),body=r.querySelector(".body");
       chk.addEventListener("click",()=>{
         it.sel=(it.sel===false);chk.classList.toggle("on",it.sel!==false);

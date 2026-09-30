@@ -54,7 +54,8 @@ module.exports = async function () {
   $("gSave").click();
   await wait(600);
   await openGame("명조");
-  assert($("gdAll").textContent === "12,600원" && $("gdMonth").textContent === "12,600원", "총액·이번 달 12,600원 — 실제: " + $("gdAll").textContent + " / " + $("gdMonth").textContent);
+  assert($("gdAll").textContent === "12,600원" && $("gdList").querySelectorAll(".txrow").length === 2, "총액 12,600원·기록 2건 — 실제: " + $("gdAll").textContent);
+  assert(!$("gdMonth") && !$("gdPrev"), "달별 금액·달 이동은 없어야 함");
 
   btn($("gdBody"), "결제 기록 추가").click();
   await wait(30);
@@ -83,25 +84,24 @@ module.exports = async function () {
   assert(mzRow.querySelector(".gAllOf").textContent === "17,600원" && /3건/.test(mzRow.textContent) && /이번 달 12,600원/.test(mzRow.textContent), "게임별 목록은 지금까지 총액·건수, 이번 달은 아래 줄 — 실제: " + mzRow.textContent);
   await openGame("명조");
   assert($("gdAll").textContent === "17,600원", "상세 총액은 모든 달 — 실제: " + $("gdAll").textContent);
-  assert($("gdNext").disabled, "이번 달에서 다음 달로는 못 감");
-  $("gdPrev").click();
-  await wait(80);
-  assert($("gdMonth").textContent === "5,000원" && $("gdBody").textContent.includes("지난달 패키지"), "지난달 금액·기록 — 실제: " + $("gdMonth").textContent);
+  const rows = [...$("gdList").querySelectorAll(".txrow")];
+  assert(rows.length === 3 && rows[2].textContent.includes("지난달 패키지"), "모든 달 기록이 최신순으로 한 목록에 — 실제: " + rows.map((r) => r.textContent).join(" | "));
 
   /* 지난달 기록 수정 → 금액 바꾸면 그 달에 반영, 중복되지 않음. 수정은 상세로 돌아온다 */
-  $("gdBody").querySelector(".txrow").click();
+  $("gdList").querySelectorAll(".txrow")[2].click();
   await wait(30);
   input($("gAmt"), "7000");
   $("gSave").click();
   await wait(600);
   assert($("gDetail").classList.contains("open"), "수정 후엔 상세로 돌아옴");
-  assert($("gdMonth").textContent === "7,000원" && $("gdBody").querySelectorAll(".txrow").length === 1, "지난달 기록이 고쳐지고 1건 — 실제: " + $("gdMonth").textContent);
+  const rows2 = [...$("gdList").querySelectorAll(".txrow")];
+  assert(rows2.length === 3 && rows2[2].textContent.includes("7,000원"), "지난달 기록이 고쳐지고 중복 없음 — 실제: " + rows2.map((r) => r.textContent).join(" | "));
   assert($("gdAll").textContent === "19,600원", "총액 갱신 — 실제: " + $("gdAll").textContent);
-  $("gdBody").querySelector(".txrow").click();
+  $("gdList").querySelectorAll(".txrow")[2].click();
   await wait(30);
   $("gDel").click();
   await wait(600);
-  assert($("gdMonth").textContent === "0원" && $("gdAll").textContent === "12,600원", "지난달 기록 삭제 — 실제: " + $("gdMonth").textContent + " / " + $("gdAll").textContent);
+  assert($("gdList").querySelectorAll(".txrow").length === 2 && $("gdAll").textContent === "12,600원", "지난달 기록 삭제 — 실제: " + $("gdAll").textContent);
   $("gdClose").click();
   await wait(50);
   assert($("gAllTotal").textContent === "12,600원", "게임 탭 총액도 갱신 — 실제: " + $("gAllTotal").textContent);

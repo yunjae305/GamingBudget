@@ -2590,28 +2590,24 @@ function recRow(g){
   const qty=g.qty==null?1:g.qty,paid=gAmt(g),lt=g.list?g.list:0,sale=lt&&paid<lt;
   const r=document.createElement("button");r.className="txrow";
   r.innerHTML='<span class="txbody"><b style="color:var(--label);font-size:16px;white-space:normal">'+esc(gLabel(g))+'</b>'+
-    '<span>'+Number(g.d.slice(5,7))+'월 '+Number(g.d.slice(8))+'일'+(g.grp?' · '+esc(g.grp):'')+(qty>1?' · ×'+qty:'')+'</span></span>'+
+    '<span>'+(g.d.slice(0,4)!==todayISO().slice(0,4)?g.d.slice(0,4)+'년 ':'')+Number(g.d.slice(5,7))+'월 '+Number(g.d.slice(8))+'일'+(g.grp?' · '+esc(g.grp):'')+(qty>1?' · ×'+qty:'')+'</span></span>'+
     '<span class="recamt"><b>'+fmt(paid)+'원</b>'+
     (sale?'<s>'+fmt(lt)+'원</s><em>할인</em>':'')+'</span>';
   r.addEventListener("click",()=>openRec(g.id,null,g));
   return r;
 }
 /* 게임 상세 (사용자 요청 2026-09-30): 맨 위 = 이 게임에 지금까지 쓴 총액(모든 달),
-   그 아래 = 달 이동(‹ ›)으로 고르는 그 달 금액과 결제 기록. 게임 이름·한도 설정은 두지 않는다. */
+   그 아래 = 모든 달의 결제 기록을 최신순으로 한 목록에. 달별 금액·달 이동은 두지 않는다.
+   게임 이름·한도 설정도 두지 않는다. */
 let gdYm=null,gdTok=0;
-function ymShift(k,n){const d=new Date(Number(k.slice(0,4)),Number(k.slice(5,7))-1+n,1);return d.getFullYear()+"-"+pad(d.getMonth()+1);}
 async function renderDetail(){
   const nm=gdGame,body=$("gdBody"),tok=++gdTok;
-  if(!gdYm)gdYm=ym;
-  const mk=gdYm,keys=Array.from(new Set([...Object.keys(gsum),ym,mk])).sort(),lists={};
+  const keys=Array.from(new Set([...Object.keys(gsum),ym])).sort(),lists={};
   for(const k of keys)lists[k]=k===ym?games:(((await load("game/"+k))||{}).items||[]);
   if(tok!==gdTok||gdGame!==nm)return;
-  const mine=l=>l.filter(g=>(g.game||"이름 없음")===nm);
-  let all=0,cnt=0,first=null;
-  keys.forEach(k=>{const l=mine(lists[k]);all+=gTotal(l);cnt+=l.length;if(l.length&&!first)first=k;});
-  const list=mine(lists[mk]).sort((a,b)=>b.d.localeCompare(a.d)||String(b.id).localeCompare(String(a.id)));
-  const sum=gTotal(list),lim=((cfg.gameGuard||{}).perGame||{})[nm]||0,cat=CATALOG[nm];
-  const mLabel=Number(mk.slice(5,7))+"월",atNow=mk>=todayISO().slice(0,7);
+  const list=[];keys.forEach(k=>lists[k].forEach(g=>{if((g.game||"이름 없음")===nm)list.push(g);}));
+  list.sort((a,b)=>b.d.localeCompare(a.d)||String(b.id).localeCompare(String(a.id)));
+  const all=gTotal(list),cat=CATALOG[nm],first=list.length?list[list.length-1].d:null;
   $("gdTitle").textContent=nm;
   body.innerHTML='';
 
@@ -2620,30 +2616,13 @@ async function renderDetail(){
     '<div style="font-size:13px;color:var(--label2)">지금까지 '+esc(nm)+' 결제 총액</div>'+
     '<div class="big-amt" id="gdAll">'+fmt(all)+'원</div>'+
     '<div style="font-size:13px;color:var(--label2)" class="tnum">'+
-      (cnt?'총 '+cnt+'건 · '+first.slice(0,4)+'년 '+Number(first.slice(5,7))+'월부터':'아직 결제 기록이 없습니다')+'</div>'+
+      (list.length?'총 '+list.length+'건 · '+first.slice(0,4)+'년 '+Number(first.slice(5,7))+'월부터':'아직 결제 기록이 없습니다')+'</div>'+
     '</div>';
   body.appendChild(top);
 
-  const mc=document.createElement("div");mc.className="card";mc.style.marginTop="12px";
-  mc.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 8px 0">'+
-      '<button class="blue" id="gdPrev" aria-label="이전 달" style="font-size:26px;padding:0 14px;line-height:1">‹</button>'+
-      '<span style="font-size:15px;font-weight:600" id="gdYmLbl">'+mk.slice(0,4)+'년 '+mLabel+'</span>'+
-      '<button class="blue" id="gdNext" aria-label="다음 달" style="font-size:26px;padding:0 14px;line-height:1'+(atNow?';opacity:.25':'')+'"'+(atNow?' disabled':'')+'>›</button></div>'+
-    '<div style="padding:4px 16px 16px;text-align:center">'+
-      '<div style="font-size:13px;color:var(--label2)">'+mLabel+' 결제 금액</div>'+
-      '<div style="font-size:28px;font-weight:700;letter-spacing:-.02em" class="tnum" id="gdMonth">'+fmt(sum)+'원</div>'+
-      (lim?'<div class="track" style="height:7px;margin:12px 0 6px"><i style="width:'+Math.min(100,sum/lim*100)+
-        '%;background:var('+(sum>=lim?"--red":sum/lim>=.8?"--orange":"--green")+')"></i></div>'+
-        '<div style="font-size:12.5px;color:var(--label2)" class="tnum">한도 '+fmt(lim)+'원 · '+
-        (sum<=lim?'남은 '+fmt(lim-sum)+'원':fmt(sum-lim)+'원 초과')+'</div>':'')+
-    '</div>';
-  mc.querySelector("#gdPrev").addEventListener("click",()=>{gdYm=ymShift(mk,-1);renderDetail();});
-  if(!atNow)mc.querySelector("#gdNext").addEventListener("click",()=>{gdYm=ymShift(mk,1);renderDetail();});
-  body.appendChild(mc);
-
-  body.insertAdjacentHTML("beforeend",hdr(mLabel+" 결제 기록"+(list.length?" "+list.length+"건":"")));
-  const c=document.createElement("div");c.className="card";
-  if(!list.length)c.innerHTML='<p class="empty">'+mLabel+' 결제 기록이 없습니다.</p>';
+  body.insertAdjacentHTML("beforeend",hdr("결제 기록"+(list.length?" "+list.length+"건":"")));
+  const c=document.createElement("div");c.className="card";c.id="gdList";
+  if(!list.length)c.innerHTML='<p class="empty">결제 기록이 없습니다.</p>';
   list.forEach(g=>c.appendChild(recRow(g)));
   body.appendChild(c);
 
